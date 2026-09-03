@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="OpenProninx documentation by Foundry Tech Inc."><title>Build and Run | OpenProninx</title><link rel="stylesheet" href="styles.css"></head><body>
+<aside id="sidebar" aria-label="Site navigation">
+<h2>About OpenProninx</h2><ul><li><a href="index.html">Project Goals</a></li><li><a href="handbook.html">Handbook</a></li><li><a href="security.html">Security</a></li><li><a href="status.html">Development Status</a></li></ul>
+<h2>Getting OpenProninx</h2><ul><li><a href="download.html">Build and Run</a></li></ul>
+<h2>Getting Source</h2><ul><li><a href="source.html">Source Code</a></li><li><a href="https://github.com/foundrytechinc/openproninx">GitHub Mirror</a></li></ul>
+<h2>OpenProninx Resources</h2><ul><li><a href="faq.html">FAQ</a></li><li><a href="handbook.html">System Handbook</a></li><li><a href="storage.html">Storage</a></li><li><a href="networking.html">Networking</a></li><li><a href="license.html">License</a></li></ul>
+<h2>Foundry Resources</h2><ul><li><a href="https://account.foundry-tech.online/">Foundry Account</a></li></ul></aside><main id="content">
+<h1>Build and Run</h1><p>Building requires a POSIX environment with <code>bmake</code>, Clang, GNU binutils, Bash, and coreutils. QEMU is required to run the result. On Windows, use a configured WSL/Linux environment or CI runner instead of PowerShell directly.</p><pre>bmake ci
+bmake qemu</pre><p>The build produces <code>obj/PRONINX.img</code> for the boot and kernel disk, and <code>obj/fs.img</code> for the userspace filesystem. A normal <code>bmake</code> does not format or alter source files.</p><h2>Optional UFS2 volumes</h2><pre># Attach a prepared FNU Data volume at /data
+bmake qemu UFS2_DATA_IMG=/absolute/path/to/fnu-data.ufs
+
+# Use a UFS2 system image as the root volume
+bmake qemu UFS2_SYSTEM_IMG=/absolute/path/to/fnu-system.ufs</pre><p>On the audited release-builder, <code>bmake system-image</code> uses an external BSD-compatible <code>makefs</code>. Ordinary development and runtime do not require FreeBSD tooling when a release image is supplied.</p></main><footer id="footer">Copyright Foundry Tech Inc. - OpenProninx Core 0.1.0-dev documentation</footer></body></html>
