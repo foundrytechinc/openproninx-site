@@ -47,15 +47,17 @@
 <table>
   <thead><tr><th>Component</th><th>Location</th><th>Role</th></tr></thead>
   <tbody>
-    <tr><td>PSH (Proninx Shell)</td><td><code>user/sh.c</code></td><td>Native FNU command shell &mdash; <code>user@PSH [/path] $</code> prompt, FNU service built-ins, parses PIPES/LIST/BACK/REDIR command trees, execs external binaries; part of the FNU userland.</td></tr>
-    <tr><td><code>fnufetch</code></td><td><code>user/fnufetch.c</code></td><td>Pretty <code>neofetch</code>-style system information &mdash; fox ASCII art, OS/kernel/shell/arch/uptime/procs/memory/userland banner and 16-color ANSI palette; replaces the older minimal <code>info</code> built-in.</td></tr>
-    <tr><td><code>fnusvc</code></td><td><code>user/fnusvc.c</code></td><td>Service supervisor; manages <code>fnu-health</code> and <code>login</code></td></tr>
+    <tr><td>PSH (Proninx Shell)</td><td><code>user/sh.c</code></td><td>Native FNU command shell &mdash; <code>user@PSH [/path] $</code> prompt, true <code>pwd</code> (via <code>getcwd(2)</code>), robust <code>cd</code>, fixed line editor, FNU service built-ins, command trees, execs external binaries.</td></tr>
+    <tr><td><code>fnufetch</code></td><td><code>user/fnufetch.c</code></td><td>Pretty system information &mdash; dual-size fox ASCII logos (scaled for small and large resolutions), live CPU hardware info, calibrated clock speeds, drives (via <code>diskinfo</code>), displays, RAM stats, and 16-color ANSI palette.</td></tr>
+    <tr><td><code>fbset</code></td><td><code>user/fbset.c</code></td><td>Framebuffer and display mode switcher &mdash; query supported adapter video modes and switch resolutions.</td></tr>
+    <tr><td><code>init</code></td><td><code>user/init.c</code></td><td>SysVinit-style PID 1 &mdash; handles boot bring-up and clean system teardown (FreeBSD-style death sequence).</td></tr>
+    <tr><td><code>fnusvc</code></td><td><code>user/fnusvc.c</code></td><td>Service supervisor &mdash; manages login instances across 4 Virtual Terminals (<code>/dev/tty1..4</code>) and supervised services like <code>fnu-health</code>.</td></tr>
     <tr><td><code>fnu-health</code></td><td><code>user/fnu-health.c</code></td><td>Periodic health observer; writes uptime, processes, free RAM</td></tr>
     <tr><td><code>fnustate</code></td><td><code>kern/fnustate.c</code></td><td>Kernel in-memory IPC device; three volatile channels</td></tr>
-    <tr><td>FNU DevFS</td><td><code>kern/fs.c</code></td><td>Virtual file resolution for <code>/fnusvc.*</code> and <code>/.fnuhealth</code></td></tr>
-    <tr><td>FNU Block Device</td><td><code>kern/blockdev.{c,h}</code></td><td>Unified read/write abstraction above hardware drivers</td></tr>
-    <tr><td>FNU Storage</td><td><code>kern/storage.c</code></td><td>FNU Root and FNU Data volume discovery and validation</td></tr>
-    <tr><td>Product Identity</td><td><code>inc/product.h</code></td><td>Name, version, vendor, and expansion string</td></tr>
+    <tr><td>FNU DevFS</td><td><code>kern/fs.c</code></td><td>Virtual file resolution for <code>/dev/tty1..4</code>, <code>/dev/console</code>, <code>/fnusvc.*</code>, and <code>/.fnuhealth</code></td></tr>
+    <tr><td>FNU Block Device</td><td><code>kern/blockdev.{c,h}</code></td><td>Unified read/write abstraction above IDE, AHCI SATA, NVMe, and ramdisk drivers</td></tr>
+    <tr><td>FNU Storage</td><td><code>kern/storage.c</code></td><td>Hybrid GPT volume model, FNU Root and FNU Data volume discovery and validation</td></tr>
+    <tr><td>Product Identity</td><td><code>inc/product.h</code></td><td>Name, version (Core 0.1.6-dev), vendor, and expansion string</td></tr>
   </tbody>
 </table>
 
@@ -69,7 +71,7 @@
   <thead><tr><th>Component</th><th>Replaceable without kernel changes?</th><th>Detail</th></tr></thead>
   <tbody>
     <tr>
-      <td><code>fnusvc</code>, <code>fnu-health</code></td>
+      <td><code>fnusvc</code>, <code>fnu-health</code>, <code>fbset</code>, <code>fnufetch</code></td>
       <td><strong>Yes, completely.</strong></td>
       <td>These are ordinary userspace processes. The kernel has no opinion about what PID&nbsp;2 is. Write your own supervisor in any language, compatible or not &mdash; the kernel will not notice.</td>
     </tr>
@@ -97,4 +99,4 @@
 </table>
 
 <div class="box"><p>In short: the userspace service layer is entirely yours to replace. The kernel IPC wiring requires a few lines of edits. The block device and storage layers are real kernel infrastructure and must be present in some form &mdash; they just happen to carry the FNU name because everything here was built together.</p></div>
-</main><footer id="footer">Copyright Foundry Tech Inc. - OpenProninx Core 0.1.5-dev documentation</footer></body></html>
+</main><footer id="footer">Copyright Foundry Tech Inc. - OpenProninx Core 0.1.6-dev documentation</footer></body></html>

@@ -18,22 +18,24 @@
 </aside>
 <main id="content">
   <h1>OpenProninx Handbook</h1>
-  <p>This handbook documents the Core 0.1.5-dev system, its commands, and its public userspace interface.</p>
+  <p>This handbook documents the Core 0.1.6-dev system, its commands, and its public userspace interface.</p>
   <h2>Starting a session</h2>
-  <p>Boot the QEMU image with <code>bmake qemu</code>. The system launches PSH on the local console.</p>
+  <p>Boot the QEMU image with <code>bmake qemu</code> (BIOS) or <code>./run-uefi.sh</code> (UEFI). The system launches PSH across 4 Virtual Terminals (switch between them using <code>CTRL + ALT + F1..F4</code>).</p>
   <pre>ls
+pwd
 cat /fnusvc.status
 top
+fnufetch
 status
 services
 health</pre>
   <h2>Accounts</h2>
   <p>Create an account locally with <code>adduser NAME</code>; add <code>-w</code> to place that account in wheel. The password is read from the console and must be at least eight characters. These account tools are not a complete access-control model; do not rely on them for security isolation.</p>
-  <h2>Services</h2>
-  <p><code>fnusvc</code> is a small local supervisor. It publishes a service snapshot through <code>/fnusvc.status</code>. Its registered health service may be started, stopped, or restarted through PSH. A service that exits more than three times in one supervisor lifetime is marked <code>failed</code> and is not restarted automatically. If <code>fnusvc</code> exits, PID 1 reboots.</p>
+  <h2>Services &amp; Init</h2>
+  <p>OpenProninx features a SysVinit-style <code>init</code> (PID 1) and <code>fnusvc</code> supervisor. <code>fnusvc</code> spawns a login session on each active virtual terminal (<code>/dev/tty1..4</code>) and manages system services such as <code>fnu-health</code>. On shutdown, <code>init</code> performs clean process teardown (via <code>SIGTERM</code>/<code>SIGKILL</code> death ladders) and executes poweroff or reboot through <code>halt(2)</code>.</p>
   <h2>Application binary interface (ABI)</h2>
   <p>OpenProninx uses a native x86-64 system-call ABI. User programs enter the kernel with <code>int $0x30</code>. Put the system-call number in <code>RAX</code>; pass up to six arguments in <code>RDI</code>, <code>RSI</code>, <code>RDX</code>, <code>RCX</code>, <code>R8</code>, and <code>R9</code>, in that order. The kernel returns the result in <code>RAX</code>. An unknown or unavailable system call returns <code>-1</code>.</p>
-  <p>The Stable Core ABI covers syscalls 0&ndash;27 (process control, file I/O, memory, status, directory, and terminal), 28&ndash;44 (network subsystem: ping, UDP, TCP, DNS, netinfo, netconfig), 45, 48, 52&ndash;57 (security, terminal, poweroff, rtctime, df) &mdash; 53 calls in total with frozen numbers and signatures. Syscalls 46&ndash;47 and 49&ndash;51 (in-kernel auth) are Experimental. The public userspace declarations are in <code>user/user.h</code>; the full reference is in <code>doc/ABI.md</code>.</p>
+  <p>The Stable Core ABI covers 60 system calls with frozen numbers and signatures (syscalls 0&ndash;45, 48, 52&ndash;64). Syscalls 46&ndash;47 and 49&ndash;51 (in-kernel auth) are Experimental. The total syscall count is 65 (<code>PRONINX_SYSCALL_COUNT</code>). The public userspace declarations are in <code>user/user.h</code>; the full reference is in <code>doc/ABI.md</code>.</p>
   <table>
     <thead><tr><th>Number</th><th>System call</th><th>Interface range</th></tr></thead>
     <tbody>
@@ -90,18 +92,28 @@ health</pre>
       <tr><td>50</td><td><code>passwd</code></td><td>Experimental</td></tr>
       <tr><td>51</td><td><code>users</code></td><td>Experimental</td></tr>
       <tr><td>52</td><td><code>setforeground</code></td><td>Stable Core ABI</td></tr>
-    <tr><td>53</td><td><code>chmod</code></td><td>Stable Core ABI</td></tr><tr><td>54</td><td><code>chown</code></td><td>Stable Core ABI</td></tr><tr><td>55</td><td><code>poweroff</code></td><td>Stable Core ABI</td></tr>      <tr><td>56</td><td><code>rtctime</code></td><td>Stable Core ABI</td></tr>
+      <tr><td>53</td><td><code>chmod</code></td><td>Stable Core ABI</td></tr>
+      <tr><td>54</td><td><code>chown</code></td><td>Stable Core ABI</td></tr>
+      <tr><td>55</td><td><code>poweroff</code></td><td>Stable Core ABI</td></tr>
+      <tr><td>56</td><td><code>rtctime</code></td><td>Stable Core ABI</td></tr>
       <tr><td>57</td><td><code>df</code></td><td>Stable Core ABI</td></tr>
+      <tr><td>58</td><td><code>signal</code></td><td>Stable Core ABI</td></tr>
+      <tr><td>59</td><td><code>sigcatch</code></td><td>Stable Core ABI</td></tr>
+      <tr><td>60</td><td><code>sigwait</code></td><td>Stable Core ABI</td></tr>
+      <tr><td>61</td><td><code>halt</code></td><td>Stable Core ABI</td></tr>
+      <tr><td>62</td><td><code>hwinfo</code></td><td>Stable Core ABI</td></tr>
+      <tr><td>63</td><td><code>diskinfo</code></td><td>Stable Core ABI</td></tr>
+      <tr><td>64</td><td><code>getcwd</code></td><td>Stable Core ABI</td></tr>
     </tbody>
   </table>
   <h3>ABI data types and structures</h3>
-  <p>The public ABI header uses 64-bit <code>pointer_t</code> and <code>uint64</code>, 32-bit <code>uint32</code>, 8-bit <code>uint8</code> and <code>proc_state_t</code>; <code>pid_t</code> is a signed 32-bit type. It publishes <code>struct info</code> for uptime, RAM, and process count; <code>struct procinfo</code> for process snapshots; network structures (<code>struct network_status</code>, <code>struct network_ipv4_config</code>, <code>struct network_ping_request</code>, <code>struct network_endpoint</code>, <code>struct network_dns_request</code>); <code>struct rtctime</code> for RTC wall-clock time; <code>struct df_stat</code> for storage usage; <code>struct linux_dirent64</code> for directory enumeration; and <code>struct termios</code> / <code>struct fb_var_screeninfo</code> for terminal and display control.</p>
-  <h3>Process observation and waiting</h3>
-  <p><code>procinfo(struct procinfo *records, int capacity)</code> returns a bounded process snapshot for tools such as <code>top</code>. <code>waitpid(pid, WNOHANG)</code> supports a bounded non-blocking wait; use <code>-1</code> as the PID to select any direct child. It returns <code>0</code> immediately when matching children are still running.</p>
-  <div class="box"><p><strong>Build note:</strong> Build userspace against the OpenProninx public headers: <code>inc/abi.h</code>, <code>inc/syscall.h</code>, and <code>user/user.h</code>.</p></div>
-  <h2>UFS2 data volume</h2>
-  <p>The boot image <code>PRONINX.img</code> is self-contained: the userspace filesystem is embedded in the kernel ramdisk. No separate <code>fs.img</code> drive is required. When a valid prepared UFS2 FNU Data image is additionally attached, its namespace appears at <code>/data</code>. The writer supports file and empty-directory creation, direct-block writes, hard links, removal, and one level of indirect UFS2 blocks. Symlinks, double/triple indirection, and crash-safe metadata updates are not available. There is no FNU <code>mkfs</code>.</p>
+  <p>The public ABI header uses 64-bit <code>pointer_t</code> and <code>uint64</code>, 32-bit <code>uint32</code>, 8-bit <code>uint8</code> and <code>proc_state_t</code>; <code>pid_t</code> is a signed 32-bit type. It publishes <code>struct info</code> for uptime, RAM, and process count; <code>struct procinfo</code> for process snapshots; <code>struct hwinfo</code> for CPU/VRAM/PCI hardware inventory; <code>struct diskinfo</code> for attached block storage info (AHCI SATA / NVMe / RAMDisk); <code>struct fb_modelist</code> for display modes; network structures (<code>struct network_status</code>, <code>struct network_ipv4_config</code>, <code>struct network_ping_request</code>, <code>struct network_endpoint</code>, <code>struct network_dns_request</code>); <code>struct rtctime</code> for RTC wall-clock time; <code>struct df_stat</code> for storage usage; <code>struct linux_dirent64</code> for directory enumeration; and <code>struct termios</code> / <code>struct fb_var_screeninfo</code> for terminal and display control.</p>
+  <h3>Process observation, signals, and waiting</h3>
+  <p><code>procinfo(struct procinfo *records, int capacity)</code> returns a bounded process snapshot for tools such as <code>top</code>. <code>waitpid(pid, WNOHANG)</code> supports a bounded non-blocking wait; use <code>-1</code> as the PID to select any direct child. <code>signal(2)</code>, <code>sigcatch(2)</code>, and <code>sigwait(2)</code> implement signal handling and asynchronous event interception. <code>kill(2)</code> enforces permission isolation (only root/wheel may signal foreign processes).</p>
+  <div class="box"><p><strong>Build note:</strong> Build userspace against the OpenProninx public headers: <code>inc/abi.h</code>, <code>inc/syscall.h</code>, <code>inc/signal.h</code>, and <code>user/user.h</code>.</p></div>
+  <h2>UFS2 data volume &amp; GPT Storage</h2>
+  <p>The boot image <code>PRONINX.img</code> is a self-contained hybrid GPT disk containing an ESP partition (with kernel, ramdisk, and UEFI loader), an <code>fnu-boot</code> BIOS stage2 partition, and an <code>fnu-root</code> partition. When a prepared UFS2 FNU Data image is additionally attached, its namespace appears at <code>/data</code>.</p>
 </main>
-<footer id="footer">Copyright Foundry Tech Inc. - OpenProninx Core 0.1.5-dev documentation</footer>
+<footer id="footer">Copyright Foundry Tech Inc. - OpenProninx Core 0.1.6-dev documentation</footer>
 </body>
 </html>
