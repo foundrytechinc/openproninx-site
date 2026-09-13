@@ -1,9 +1,110 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="OpenProninx documentation by Foundry Tech Inc."><title>Frequently Asked Questions | OpenProninx</title><link rel="stylesheet" href="styles.css"></head><body>
-<aside id="sidebar" aria-label="Site navigation">
-<h2>About OpenProninx</h2><ul><li><a href="index.html">Project Goals</a></li><li><a href="handbook.html">Handbook</a></li><li><a href="security.html">Security</a></li><li><a href="index.html">Development Status</a></li></ul>
-<h2>Getting OpenProninx</h2><ul><li><a href="download.html">Build and Run</a></li></ul>
-<h2>Getting Source</h2><ul><li><a href="source.html">Source Code</a></li><li><a href="https://github.com/foundrytechinc/openproninx">GitHub Mirror</a></li></ul>
-<h2>OpenProninx Resources</h2><ul><li><a href="faq.html">FAQ</a></li><li><a href="handbook.html">System Handbook</a></li><li><a href="storage.html">Storage</a></li><li><a href="networking.html">Networking</a></li><li><a href="fnu.html">FNU</a></li><li><a href="license.html">License</a></li></ul>
-<h2>Foundry Resources</h2><ul><li><a href="https://account.foundry-tech.online/">Foundry Account</a></li></ul></aside><main id="content">
-<h1>Frequently Asked Questions</h1><dl class="faq"><dt>What is OpenProninx?</dt><dd>It is the FNU/OpenProninx continuation of PRONINX: a native x86-64 operating system under active development with a self-contained boot path (dual BIOS &amp; UEFI), kernel, 4 Virtual Terminals, userspace, and QEMU/bare-metal images.</dd><dt>Is it ready for production?</dt><dd>No. Core 0.1.6-dev is a development baseline. Networking is functional (Intel E1000/VirtIO-Net + lwIP) but not hardened. It is not suitable for confidential data or exposure to an untrusted network.</dd><dt>Is OpenProninx Linux or a BSD distribution?</dt><dd>No. It is its own operating-system project. It uses selected third-party components behind defined adaptation boundaries and retains its own kernel and userspace.</dd><dt>Which license applies?</dt><dd>The repository is distributed under the BSD 3-Clause License. Imported third-party code retains its own notices and provenance records.</dd><dt>Can I run it on physical hardware?</dt><dd>OpenProninx uses QEMU as its reference test platform and supports bare-metal booting via both legacy BIOS (with GPT parsing, A20, VBE/EDID, coreboot tables) and modern UEFI (GOP framebuffer). It includes PCI drivers for AHCI SATA, NVMe 1.4, Intel E1000, and runtime video mode switching via real-mode thunking.</dd><dt>Does it support networking or SSH?</dt><dd>Networking is functional in Core 0.1.6-dev: Intel E1000 and VirtIO-Net drivers with lwIP (DHCP, DNS, ICMP, UDP, TCP) are integrated. SSH is not implemented. Do not treat the system as a secure networked host.</dd><dt>What filesystem does it use?</dt><dd>The boot image uses a hybrid GPT layout (ESP, fnu-boot, fnu-root) where the userspace root filesystem is passed as a bootloader module. UFS2/FFS is available as an optional data volume mounted at <code>/data</code>.</dd><dt>How do I get the source?</dt><dd>Visit the <a href="https://github.com/foundrytechinc/openproninx">OpenProninx GitHub mirror</a>.</dd></dl></main><footer id="footer">Copyright Foundry Tech Inc. - OpenProninx Core 0.1.6-dev documentation</footer></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="OpenProninx documentation by Foundry Tech Inc.">
+  <title>Frequently Asked Questions | OpenProninx</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Sidebar Navigation -->
+  <aside id="sidebar" aria-label="Site navigation">
+    <h2>About OpenProninx</h2>
+    <ul>
+      <li><a href="index.html">Project Goals</a></li>
+      <li><a href="handbook.html">Handbook</a></li>
+    </ul>
+
+    <h2>Getting OpenProninx</h2>
+    <ul>
+      <li><a href="download.html">Build and Run</a></li>
+    </ul>
+
+    <h2>Getting Source</h2>
+    <ul>
+      <li><a href="https://github.com/foundrytechinc/openproninx">GitHub Mirror</a></li>
+    </ul>
+
+    <h2>OpenProninx Resources</h2>
+    <ul>
+      <li><a href="faq.html">FAQ</a></li>
+      <li><a href="handbook.html">System Handbook</a></li>
+      <li><a href="storage.html">Storage</a></li>
+      <li><a href="networking.html">Networking</a></li>
+      <li><a href="fnu.html">FNU</a></li>
+    </ul>
+
+    <h2>Foundry Resources</h2>
+    <ul>
+      <li><a href="https://account.foundry-tech.online/">Foundry Account</a></li>
+    </ul>
+  </aside>
+
+  <!-- Main Content -->
+  <main id="content">
+    <h1>Frequently Asked Questions</h1>
+
+    <dl class="faq">
+      <dt>What is OpenProninx?</dt>
+      <dd>
+        It is the FNU/OpenProninx continuation of PRONINX: a native x86-64 operating system
+        under active development with a self-contained boot path (dual BIOS &amp; UEFI), kernel,
+        4 Virtual Terminals, userspace, and QEMU/bare-metal images.
+      </dd>
+
+      <dt>Is it ready for production?</dt>
+      <dd>
+        No. Core 0.1.6-dev is a development baseline. Networking is functional (Intel E1000/VirtIO-Net + lwIP)
+        but not hardened. It is not suitable for confidential data or exposure to an untrusted network.
+      </dd>
+
+      <dt>Is OpenProninx Linux or a BSD distribution?</dt>
+      <dd>
+        No. It is its own operating-system project. It uses selected third-party components behind defined
+        adaptation boundaries and retains its own kernel and userspace.
+      </dd>
+
+      <dt>Which license applies?</dt>
+      <dd>
+        The repository is distributed under the BSD 3-Clause License. Imported third-party code retains
+        its own notices and provenance records.
+      </dd>
+
+      <dt>Can I run it on physical hardware?</dt>
+      <dd>
+        OpenProninx uses QEMU as its reference test platform and supports bare-metal booting via both
+        legacy BIOS (with GPT parsing, A20, VBE/EDID, coreboot tables) and modern UEFI (GOP framebuffer).
+        It includes PCI drivers for AHCI SATA, NVMe 1.4, Intel E1000, and runtime video mode switching
+        via real-mode thunking.
+      </dd>
+
+      <dt>Does it support networking or SSH?</dt>
+      <dd>
+        Networking is functional in Core 0.1.6-dev: Intel E1000 and VirtIO-Net drivers with lwIP
+        (DHCP, DNS, ICMP, UDP, TCP) are integrated. SSH is not implemented. Do not treat the system
+        as a secure networked host.
+      </dd>
+
+      <dt>What filesystem does it use?</dt>
+      <dd>
+        The boot image uses a hybrid GPT layout (ESP, fnu-boot, fnu-root) where the userspace root
+        filesystem is passed as a bootloader module. UFS2/FFS is available as an optional data
+        volume mounted at <code>/data</code>.
+      </dd>
+
+      <dt>How do I get the source?</dt>
+      <dd>
+        Visit the <a href="https://github.com/foundrytechinc/openproninx">OpenProninx GitHub mirror</a>.
+      </dd>
+    </dl>
+  </main>
+
+  <!-- Footer -->
+  <footer id="footer">
+    Copyright Foundry Tech Inc. - OpenProninx Core 0.1.6-dev documentation
+  </footer>
+
+</body>
+</html>

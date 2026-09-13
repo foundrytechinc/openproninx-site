@@ -1,102 +1,68 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="FNU — Foundry is Not Unix. A BSD-licensed software set for OpenProninx development."><title>FNU | OpenProninx</title><link rel="stylesheet" href="styles.css"></head><body>
-<aside id="sidebar" aria-label="Site navigation">
-<h2>About OpenProninx</h2><ul><li><a href="index.html">Project Goals</a></li><li><a href="handbook.html">Handbook</a></li><li><a href="security.html">Security</a></li><li><a href="index.html">Development Status</a></li></ul>
-<h2>Getting OpenProninx</h2><ul><li><a href="download.html">Build and Run</a></li></ul>
-<h2>Getting Source</h2><ul><li><a href="source.html">Source Code</a></li><li><a href="https://github.com/foundrytechinc/openproninx">GitHub Mirror</a></li></ul>
-<h2>OpenProninx Resources</h2><ul><li><a href="faq.html">FAQ</a></li><li><a href="handbook.html">System Handbook</a></li><li><a href="storage.html">Storage</a></li><li><a href="networking.html">Networking</a></li><li><a href="fnu.html">FNU</a></li><li><a href="license.html">License</a></li></ul>
-<h2>Foundry Resources</h2><ul><li><a href="https://account.foundry-tech.online/">Foundry Account</a></li></ul></aside><main id="content">
-<h1>FNU &mdash; Foundry is Not Unix</h1>
-<p class="slogan">A set of BSD-licensed software that helps OpenProninx grow without touching the GPL.</p>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="OpenProninx documentation by Foundry Tech Inc.">
+  <title>FNU Operating System | OpenProninx</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
 
-<div class="notice"><strong>FNU is not a replacement for OpenProninx.</strong> It is a collection of software developed alongside OpenProninx &mdash; a supervisor, a health monitor, a kernel IPC device, a storage volume model. OpenProninx is the operating system. FNU is what runs on top of it and ties it together.</div>
+=  <aside id="sidebar" aria-label="Site navigation">
+    <h2>About OpenProninx</h2>
+    <ul>
+      <li><a href="index.html">Main</a></li>
+      <li><a href="handbook.html">Handbook</a></li>
+    </ul>
 
-<h2>Why FNU exists</h2>
-<p>The GNU project and the GPL were built on a philosophy that source code must remain perpetually open and that any software touching GPL code inherits its terms. We disagree with this entirely. The GPL is not a freedom license &mdash; it is a restriction license that tells you what you <em>must</em> do with your own work. We want no part of it.</p>
-<p>PRONINX, the predecessor to OpenProninx, had no service layer of its own. It was a bare kernel and shell. When Foundry Tech Inc. took over development as OpenProninx, the question became: what replaces the GNU userland tools that most Unix-like systems quietly depend on? The answer is FNU &mdash; built from scratch, BSD-licensed, no GPL lineage.</p>
-<p>FNU stands for <strong>Foundry is Not Unix</strong>. The name is a deliberate echo of GNU's own recursive acronym, and the message is the opposite: where GNU layers restrictions on top of Unix ideas, FNU layers permissive software on top of an original kernel.</p>
+    <h2>Getting OpenProninx</h2>
+    <ul>
+      <li><a href="download.html">Build and Run</a></li>
+    </ul>
 
-<h2>What FNU is</h2>
-<ul>
-  <li>PSH (Proninx Shell) &mdash; the native interactive command-line shell of OpenProninx, built as part of the FNU userland. It exposes FNU service commands (<code>services</code>, <code>health</code>, <code>start/stop/restart health</code>) directly as built-ins, renders a <code>user@PSH [/path] $</code> prompt, and replaces the old bare PRONINX shell.</li>
-  <li><strong>fnufetch</strong> &mdash; a compact, BSD-licensed <code>neofetch</code>-style system information tool. Prints the fox logo next to OS, kernel, arch, uptime, process count, human-readable memory stats, userland identity, and an ANSI palette. Replaces the older minimal <code>info</code> built-in.</li>
-  <li>A <strong>service supervisor</strong> (<code>fnusvc</code>) that starts, monitors, and restarts registered services without a shell script or external init framework.</li>
-  <li>A <strong>health monitor</strong> (<code>fnu-health</code>) that periodically samples system state and makes it available to administrative commands.</li>
-  <li>A <strong>kernel IPC device</strong> (<code>fnustate</code>) that gives userspace services a place to read and write volatile state without touching the disk &mdash; essential for running cleanly on a read-only system image.</li>
-  <li>A <strong>named volume model</strong> (FNU Root, FNU Data) that gives storage roles a clear semantic rather than treating every block device as interchangeable.</li>
-  <li>A <strong>block device abstraction layer</strong> that sits above IDE, AHCI, NVMe, and the ramdisk without forcing each driver to know about the others.</li>
-  <li>A <strong>product identity framework</strong> (<code>inc/product.h</code>) that separates version, vendor, and name from the ABI headers.</li>
-</ul>
+    <h2>Getting Source</h2>
+    <ul>
+      <li><a href="https://github.com/foundrytechinc/openproninx">GitHub Mirror</a></li>
+    </ul>
 
-<h2>What FNU is not</h2>
-<ul>
-  <li>Not an operating system. OpenProninx is the operating system.</li>
-  <li>Not a GNU replacement project. We are not trying to reimplement <code>bash</code>, <code>coreutils</code>, or <code>glibc</code>. We are building what OpenProninx specifically needs.</li>
-  <li>Not a compatibility layer. FNU software is written for OpenProninx. It does not aim to run on Linux or any other system.</li>
-  <li>Not a package manager or distribution. There are no packages, no repositories, no update manifests in FNU.</li>
-</ul>
+    <h2>OpenProninx Resources</h2>
+    <ul>
+      <li><a href="faq.html">FAQ</a></li>
+      <li><a href="handbook.html">System Handbook</a></li>
+      <li><a href="storage.html">Storage</a></li>
+      <li><a href="networking.html">Networking</a></li>
+      <li><a href="fnu.html">FNU</a></li>
+    </ul>
 
-<h2>License</h2>
-<p>Every FNU component is distributed under the BSD 3-Clause License, the same as OpenProninx itself. This is intentional and non-negotiable. No component will ever depend on GPL or LGPL code. If a required library exists only under GPL terms, we write our own or do without.</p>
-<div class="box"><p>The BSD 3-Clause License permits use, modification, and redistribution with or without source, in any product, commercial or otherwise, with no obligation to publish changes. That is the level of freedom we consider acceptable.</p></div>
+    <h2>Foundry Resources</h2>
+    <ul>
+      <li><a href="https://account.foundry-tech.online/">Foundry Account</a></li>
+    </ul>
+  </aside>
 
-<h2>Relationship to OpenProninx</h2>
-<p>FNU began development at the same time as OpenProninx. The kernel was written knowing that <code>fnusvc</code> would be PID&nbsp;2; the FNU State device was added to the kernel specifically so the supervisor could communicate with the shell without a writable disk. They grew together.</p>
-<p>This means FNU is not bolted on. The kernel exports <code>FNU_STATE</code> as a first-class character device. The virtual filesystem resolves <code>/fnusvc.command</code> and <code>/fnusvc.status</code> directly in the inode layer. FNU is the service architecture of OpenProninx &mdash; but it remains a distinct set of software with its own identity.</p>
+  <!-- Main Content -->
+  <main id="content">
+  
+<div class="notice"><strong>FNU is not compatible with any OS except OpenProninx.</strong></div>
 
-<table>
-  <thead><tr><th>Component</th><th>Location</th><th>Role</th></tr></thead>
-  <tbody>
-    <tr><td>PSH (Proninx Shell)</td><td><code>user/sh.c</code></td><td>Native FNU command shell &mdash; <code>user@PSH [/path] $</code> prompt, true <code>pwd</code> (via <code>getcwd(2)</code>), robust <code>cd</code>, fixed line editor, FNU service built-ins, command trees, execs external binaries.</td></tr>
-    <tr><td><code>fnufetch</code></td><td><code>user/fnufetch.c</code></td><td>Pretty system information &mdash; dual-size fox ASCII logos (scaled for small and large resolutions), live CPU hardware info, calibrated clock speeds, drives (via <code>diskinfo</code>), displays, RAM stats, and 16-color ANSI palette.</td></tr>
-    <tr><td><code>fbset</code></td><td><code>user/fbset.c</code></td><td>Framebuffer and display mode switcher &mdash; query supported adapter video modes and switch resolutions.</td></tr>
-    <tr><td><code>init</code></td><td><code>user/init.c</code></td><td>SysVinit-style PID 1 &mdash; handles boot bring-up and clean system teardown (FreeBSD-style death sequence).</td></tr>
-    <tr><td><code>fnusvc</code></td><td><code>user/fnusvc.c</code></td><td>Service supervisor &mdash; manages login instances across 4 Virtual Terminals (<code>/dev/tty1..4</code>) and supervised services like <code>fnu-health</code>.</td></tr>
-    <tr><td><code>fnu-health</code></td><td><code>user/fnu-health.c</code></td><td>Periodic health observer; writes uptime, processes, free RAM</td></tr>
-    <tr><td><code>fnustate</code></td><td><code>kern/fnustate.c</code></td><td>Kernel in-memory IPC device; three volatile channels</td></tr>
-    <tr><td>FNU DevFS</td><td><code>kern/fs.c</code></td><td>Virtual file resolution for <code>/dev/tty1..4</code>, <code>/dev/console</code>, <code>/fnusvc.*</code>, and <code>/.fnuhealth</code></td></tr>
-    <tr><td>FNU Block Device</td><td><code>kern/blockdev.{c,h}</code></td><td>Unified read/write abstraction above IDE, AHCI SATA, NVMe, and ramdisk drivers</td></tr>
-    <tr><td>FNU Storage</td><td><code>kern/storage.c</code></td><td>Hybrid GPT volume model, FNU Root and FNU Data volume discovery and validation</td></tr>
-    <tr><td>Product Identity</td><td><code>inc/product.h</code></td><td>Name, version (Core 0.1.6-dev), vendor, and expansion string</td></tr>
-  </tbody>
-</table>
+    <h1>FNU - Foundry Not Unix</h1>
+ 		FNU is the official set of utilities (both for the kernel and the userland) for OpenProninx (hence the official name, FNU/OpenProninx). Our main goal is to ensure that our operating system doesn't port a ready-made userland, such as gnu-coreutls, but rather writes its own, tailored to the needs of the OS itself.
+ 		We are strictly against copyleft licenses, and our source code is distributed along with OpenProninx under the BSD-3-Clause license.
+ 	<h2>FNU is not....</h2>
+ 	<ul>
+ 	  <li>Not an operating system. OpenProninx is the operating system.</li>
+ 	  <li>Not a GNU replacement project. We are not trying to reimplement <code>bash</code>, <code>coreutils</code>, or <code>glibc</code>. We are building what OpenProninx specifically needs.</li>
+ 	  <li>Not a compatibility layer. FNU software is written for OpenProninx. It does not aim to run on Linux or any other system.</li>
+ 	</ul>
 
+ 	
+  </main>
 
-<h2>FNU is growing &mdash; and it is partially replaceable</h2>
-<p>FNU is not finished. New components are added as OpenProninx needs them. There is no target feature list or compatibility promise &mdash; what goes in is whatever the system needs next, as long as it is BSD-licensed and written from scratch.</p>
+  <!-- Footer -->
+  <footer id="footer">
+    (С) Foundry Tech Inc.
+  </footer>
 
-<p>As for replacing FNU components: it depends on which layer you mean.</p>
-
-<table>
-  <thead><tr><th>Component</th><th>Replaceable without kernel changes?</th><th>Detail</th></tr></thead>
-  <tbody>
-    <tr>
-      <td><code>fnusvc</code>, <code>fnu-health</code>, <code>fbset</code>, <code>fnufetch</code></td>
-      <td><strong>Yes, completely.</strong></td>
-      <td>These are ordinary userspace processes. The kernel has no opinion about what PID&nbsp;2 is. Write your own supervisor in any language, compatible or not &mdash; the kernel will not notice.</td>
-    </tr>
-    <tr>
-      <td><code>fnustate</code> &mdash; in-memory IPC device</td>
-      <td><strong>Partially.</strong></td>
-      <td>The kernel calls <code>fnustateinit()</code> at boot and hard-codes the virtual paths <code>/fnusvc.command</code>, <code>/fnusvc.status</code>, and <code>/.fnuhealth</code> in the filesystem layer. Removing it requires editing four kernel files (<code>main.c</code>, <code>file.h</code>, <code>fs.c</code>, <code>defs.h</code>). Small edits, but they are there. You can replace it with your own IPC mechanism; the kernel will not break, but you have to do the wiring.</td>
-    </tr>
-    <tr>
-      <td>FNU Block Device (<code>blockdev.c</code>)</td>
-      <td><strong>No &mdash; this is kernel infrastructure.</strong></td>
-      <td>The UFS2 driver calls <code>blockdev_read</code> and <code>blockdev_write</code> in dozens of places. The storage discovery layer depends on it. The <code>FNU_</code> prefix in the header guards is cosmetic; the code itself is a core kernel component. Removing it breaks UFS2 and all optional storage volumes.</td>
-    </tr>
-    <tr>
-      <td>FNU Storage volume model (<code>storage.c</code>)</td>
-      <td><strong>No &mdash; same reason.</strong></td>
-      <td>This is the UFS2 volume discovery and validation layer. Without it, optional data volumes at <code>/data</code> do not appear. It can be extended or rewritten, but there must be something equivalent for UFS2 to function.</td>
-    </tr>
-    <tr>
-      <td>Product identity (<code>inc/product.h</code>)</td>
-      <td><strong>Yes, trivially.</strong></td>
-      <td>Four <code>#define</code> strings. Change them to anything.</td>
-    </tr>
-  </tbody>
-</table>
-
-<div class="box"><p>In short: the userspace service layer is entirely yours to replace. The kernel IPC wiring requires a few lines of edits. The block device and storage layers are real kernel infrastructure and must be present in some form &mdash; they just happen to carry the FNU name because everything here was built together.</p></div>
-</main><footer id="footer">Copyright Foundry Tech Inc. - OpenProninx Core 0.1.6-dev documentation</footer></body></html>
+</body>
+</html>
