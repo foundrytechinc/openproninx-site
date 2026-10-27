@@ -9,7 +9,6 @@
 </head>
 <body>
 
-  <!-- Sidebar Navigation -->
   <aside id="sidebar" aria-label="Site navigation">
     <h2>About OpenProninx</h2>
     <ul>
@@ -36,10 +35,7 @@
       <li><a href="fnu.html">FNU</a></li>
     </ul>
 
-    <h2>Foundry Resources</h2>
-    <ul>
-      <li><a href="https://account.foundry-tech.online/">Foundry Account</a></li>
-    </ul>
+ 
   </aside>
 
   <!-- Main Content -->
@@ -47,24 +43,42 @@
     <h1>OpenProninx Handbook</h1>
     <p>This handbook documents the Core 0.1.6-dev system, its commands, and its public userspace interface.</p>
 
-    <h2>Starting a session</h2>
-    <p>Boot the QEMU image with <code>bmake qemu</code> (BIOS) or <code>./run-uefi.sh</code> (UEFI). The system launches PSH across 4 Virtual Terminals (switch between them using <code>CTRL + ALT + F1..F4</code>).</p>
+	<h2>What is FNU/OpenProninx?</h2>
+	<p>FNU/OpenProninx is a free operating system based on PRONINX, created by the Foundry Technologies Collective. It is distributed under the BSD-3-Clause license and contains <b>NOT A SINGLE LINE</b> of GPL-licensed code.</p>
 
-    <pre>ls
-pwd
-cat /fnusvc.status
-top
-fnufetch
-status
-services
-health</pre>
+	<h2>How to build</h2>
 
-    <h2>Accounts</h2>
+	<p>To compile OpenProninx, you need to install the following tools: bmake, clang, lld, gdisk (sgdisk), mtools, clang-format, gdb (if you need debugging), and llvm.
+	Here are the available targets:
+	<pre>
+	bmake - builds PRONINX.img
+	bmake ci - build + verify that the images aren't empty + smoke test
+	bmake qemu - runs in QEMU with BIOS, GTK display, and the -serial mon:stdio argument
+	bmake qemu-uefi - same thing, but with UEFI
+	bmake smoke - runs the tests
+	bmake system-image (si) - builds obj/fnu-system.ufs via tools/build-ufs2-system.sh (requires makefs with FFS/UFS2 support, FreeBSD only)
+	bmake format - runs clang-format over boot/ kern/ inc/ lib/ user/ (doesn't touch vendored third_party/; skips files with CRLF/mixed EOL)
+	bmake clean - removes obj/, .gdbinit, qemu.log, and the generated kern/vectors.S
+	bmake qemu-gdb + bmake gdb - QEMU with the -gdb tcp::12345 -S argument and GDB with auto-connect
+	</pre>
+	Most of the time you'll only need bmake, bmake ci, and bmake qemu.
+	To compile using multiple threads, pass -jy
+	where y is the number of threads on your CPU.</p>	
+	
+    <h2>Starting a session in QEMU</h2>
+    <p>Boot the QEMU image with <code>bmake qemu</code> (BIOS) or <code>./run-uefi.sh</code> (UEFI).</p>
+
+
+	<h2>Starting a session in real PC</h2>
+	<p>To launch FNU/OpenProninx on a physical computer, you must burn the .img image of FNU/OpenProninx to a storage medium (CD, DVD, USB) using either RUFUS or the dd utility in UNIX-based operating systems.</p>
+	<p>Support is available for both traditional BIOS and UEFI. Then, you need to choose your storage device in the Boot Menu on your computer. After that, you will be prompted to enter the password for one of the default users: root, user, or admin.</p>
+	
+    <h2>How to create account?</h2>
     <p>Create an account locally with <code>adduser NAME</code>; add <code>-w</code> to place that account in wheel. The password is read from the console and must be at least eight characters. These account tools are not a complete access-control model; do not rely on them for security isolation.</p>
 
     <h2>Services &amp; Init</h2>
     <p>OpenProninx features a SysVinit-style <code>init</code> (PID 1) and <code>fnusvc</code> supervisor. <code>fnusvc</code> spawns a login session on each active virtual terminal (<code>/dev/tty1..4</code>) and manages system services such as <code>fnu-health</code>. On shutdown, <code>init</code> performs clean process teardown (via <code>SIGTERM</code>/<code>SIGKILL</code> death ladders) and executes poweroff or reboot through <code>halt(2)</code>.</p>
-
+	
     <h2>Application binary interface (ABI)</h2>
     <p>OpenProninx uses a native x86-64 system-call ABI. User programs enter the kernel with <code>int $0x30</code>. Put the system-call number in <code>RAX</code>; pass up to six arguments in <code>RDI</code>, <code>RSI</code>, <code>RDX</code>, <code>RCX</code>, <code>R8</code>, and <code>R9</code>, in that order. The kernel returns the result in <code>RAX</code>. An unknown or unavailable system call returns <code>-1</code>.</p>
     <p>The Stable Core ABI covers 60 system calls with frozen numbers and signatures (syscalls 0&ndash;45, 48, 52&ndash;64). Syscalls 46&ndash;47 and 49&ndash;51 (in-kernel auth) are Experimental. The total syscall count is 65 (<code>PRONINX_SYSCALL_COUNT</code>). The public userspace declarations are in <code>user/user.h</code>; the full reference is in <code>doc/ABI.md</code>.</p>
@@ -183,7 +197,7 @@ health</pre>
 
   <!-- Footer -->
   <footer id="footer">
-    Copyright Foundry Tech Inc. - OpenProninx Core 0.1.6-dev documentation
+	(C) Foundry Technologies Collective
   </footer>
 
 </body>
