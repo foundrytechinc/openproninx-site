@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="OpenProninx ABI and system handbook.">
+  <meta name="description" content="OpenProninx system handbook - build, ABI, subsystems, and userspace.">
   <title>System Handbook | OpenProninx</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -12,7 +12,7 @@
   <aside id="sidebar" aria-label="Site navigation">
     <h2>About OpenProninx</h2>
     <ul>
-      <li><a href="index.html">Project Goals</a></li>
+      <li><a href="index.html">Main</a></li>
       <li><a href="handbook.html">Handbook</a></li>
     </ul>
 
@@ -34,170 +34,614 @@
       <li><a href="networking.html">Networking</a></li>
       <li><a href="fnu.html">FNU</a></li>
     </ul>
-
- 
   </aside>
 
-  <!-- Main Content -->
   <main id="content">
     <h1>OpenProninx Handbook</h1>
-    <p>This handbook documents the Core 0.1.6-dev system, its commands, and its public userspace interface.</p>
+    <p>
+      This handbook describes <strong>FNU/OpenProninx Core 0.1.8-dev</strong>
+      as implemented in the source tree (<code>inc/product.h</code>):
+      architecture, build and run workflow, system-call ABI, kernel subsystems,
+      storage, networking, init and services, and the FNU userspace.
+      Facts below follow the code; the older prose under <code>doc/</code> may lag behind.
+    </p>
 
-	<h2>What is FNU/OpenProninx?</h2>
-	<p>FNU/OpenProninx is a free operating system based on PRONINX, created by the Foundry Technologies Collective. It is distributed under the BSD-3-Clause license and contains <b>NOT A SINGLE LINE</b> of GPL-licensed code.</p>
+    <div class="notice">
+      <strong>Development baseline.</strong> Core 0.1.8-dev is not production-ready.
+      Do not expose it to an untrusted network or store confidential data on it.
+      Default credentials are for throwaway images only - change them.
+    </div>
 
-	<h2>How to build</h2>
+    <h2 id="what">What is OpenProninx?</h2>
+    <p>
+      <strong>OpenProninx</strong> is a free, independent x86-64 operating system
+      under the <strong>BSD 3-Clause License</strong>, developed by Foundry Technologies
+      (originally as PRONINX, once based on the xv6 x86_64 port). It is no longer
+      an educational xv6 fork: it has its own kernel, boot path (BIOS and UEFI),
+      drivers, storage, networking, graphics, and userspace.
+    </p>
+    <p>
+      <strong>FNU (Foundry Not Unix)</strong> is the userspace written for it -
+      <code>init</code>, the supervisor <code>fnusvc</code>, shell, utilities,
+      libraries (<code>libc</code>, <code>libfnu</code>, <code>libm</code>,
+      <code>libcrypt</code>, <code>libutil</code>, <code>libssh</code>). FNU is
+      not a GNU replacement, not a compatibility layer, and not an OS by itself.
+      No component is under GPL/LGPL.
+    </p>
 
-	<p>To compile OpenProninx, you need to install the following tools: bmake, clang, lld, gdisk (sgdisk), mtools, clang-format, gdb (if you need debugging), and llvm.
-	Here are the available targets:
-	<pre>
-	bmake - builds PRONINX.img
-	bmake ci - build + verify that the images aren't empty + smoke test
-	bmake qemu - runs in QEMU with BIOS, GTK display, and the -serial mon:stdio argument
-	bmake qemu-uefi - same thing, but with UEFI
-	bmake smoke - runs the tests
-	bmake system-image (si) - builds obj/fnu-system.ufs via tools/build-ufs2-system.sh (requires makefs with FFS/UFS2 support, FreeBSD only)
-	bmake format - runs clang-format over boot/ kern/ inc/ lib/ user/ (doesn't touch vendored third_party/; skips files with CRLF/mixed EOL)
-	bmake clean - removes obj/, .gdbinit, qemu.log, and the generated kern/vectors.S
-	bmake qemu-gdb + bmake gdb - QEMU with the -gdb tcp::12345 -S argument and GDB with auto-connect
-	</pre>
-	Most of the time you'll only need bmake, bmake ci, and bmake qemu.
-	To compile using multiple threads, pass -jy
-	where y is the number of threads on your CPU.</p>	
-	
-    <h2>Starting a session in QEMU</h2>
-    <p>Boot the QEMU image with <code>bmake qemu</code> (BIOS) or <code>./run-uefi.sh</code> (UEFI).</p>
-
-
-	<h2>Starting a session in real PC</h2>
-	<p>To launch FNU/OpenProninx on a physical computer, you must burn the .img image of FNU/OpenProninx to a storage medium (CD, DVD, USB) using either RUFUS or the dd utility in UNIX-based operating systems.</p>
-	<p>Support is available for both traditional BIOS and UEFI. Then, you need to choose your storage device in the Boot Menu on your computer. After that, you will be prompted to enter the password for one of the default users: root, user, or admin.</p>
-	
-    <h2>How to create account?</h2>
-    <p>Create an account locally with <code>adduser NAME</code>; add <code>-w</code> to place that account in wheel. The password is read from the console and must be at least eight characters. These account tools are not a complete access-control model; do not rely on them for security isolation.</p>
-
-    <h2>Services &amp; Init</h2>
-    <p>OpenProninx features a SysVinit-style <code>init</code> (PID 1) and <code>fnusvc</code> supervisor. <code>fnusvc</code> spawns a login session on each active virtual terminal (<code>/dev/tty1..4</code>) and manages system services such as <code>fnu-health</code>. On shutdown, <code>init</code> performs clean process teardown (via <code>SIGTERM</code>/<code>SIGKILL</code> death ladders) and executes poweroff or reboot through <code>halt(2)</code>.</p>
-	
-    <h2>Application binary interface (ABI)</h2>
-    <p>OpenProninx uses a native x86-64 system-call ABI. User programs enter the kernel with <code>int $0x30</code>. Put the system-call number in <code>RAX</code>; pass up to six arguments in <code>RDI</code>, <code>RSI</code>, <code>RDX</code>, <code>RCX</code>, <code>R8</code>, and <code>R9</code>, in that order. The kernel returns the result in <code>RAX</code>. An unknown or unavailable system call returns <code>-1</code>.</p>
-    <p>The Stable Core ABI covers 60 system calls with frozen numbers and signatures (syscalls 0&ndash;45, 48, 52&ndash;64). Syscalls 46&ndash;47 and 49&ndash;51 (in-kernel auth) are Experimental. The total syscall count is 65 (<code>PRONINX_SYSCALL_COUNT</code>). The public userspace declarations are in <code>user/user.h</code>; the full reference is in <code>doc/ABI.md</code>.</p>
-
+    <h2 id="layout">Source tree</h2>
     <table>
       <thead>
-        <tr>
-          <th>Number</th>
-          <th>System call</th>
-          <th>Interface range</th>
-        </tr>
+        <tr><th>Path</th><th>Role</th></tr>
       </thead>
       <tbody>
-        <tr><td>0</td><td><code>exit</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>1</td><td><code>read</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>2</td><td><code>write</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>3</td><td><code>open</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>4</td><td><code>close</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>5</td><td><code>fork</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>6</td><td><code>wait</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>7</td><td><code>kill</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>8</td><td><code>exec</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>9</td><td><code>sbrk</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>10</td><td><code>malloc</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>11</td><td><code>free</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>12</td><td><code>stat</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>13</td><td><code>pipe</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>14</td><td><code>info</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>15</td><td><code>reboot</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>16</td><td><code>procinfo</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>17</td><td><code>ioctl</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>18</td><td><code>getdents</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>19</td><td><code>link</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>20</td><td><code>mkdir</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>21</td><td><code>unlink</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>22</td><td><code>dup</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>23</td><td><code>mknod</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>24</td><td><code>chdir</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>25</td><td><code>getpid</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>26</td><td><code>sleep</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>27</td><td><code>waitpid</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>28</td><td><code>ping</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>29</td><td><code>udp_open</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>30</td><td><code>udp_bind</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>31</td><td><code>udp_sendto</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>32</td><td><code>udp_recvfrom</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>33</td><td><code>udp_close</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>34</td><td><code>netinfo</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>35</td><td><code>netconfig</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>36</td><td><code>tcp_open</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>37</td><td><code>tcp_bind</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>38</td><td><code>tcp_listen</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>39</td><td><code>tcp_accept</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>40</td><td><code>tcp_connect</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>41</td><td><code>tcp_send</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>42</td><td><code>tcp_recv</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>43</td><td><code>tcp_close</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>44</td><td><code>dns_resolve</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>45</td><td><code>getuid</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>46</td><td><code>login</code></td><td>Experimental</td></tr>
-        <tr><td>47</td><td><code>doas_auth</code></td><td>Experimental</td></tr>
-        <tr><td>48</td><td><code>setuid</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>49</td><td><code>useradd</code></td><td>Experimental</td></tr>
-        <tr><td>50</td><td><code>passwd</code></td><td>Experimental</td></tr>
-        <tr><td>51</td><td><code>users</code></td><td>Experimental</td></tr>
-        <tr><td>52</td><td><code>setforeground</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>53</td><td><code>chmod</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>54</td><td><code>chown</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>55</td><td><code>poweroff</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>56</td><td><code>rtctime</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>57</td><td><code>df</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>58</td><td><code>signal</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>59</td><td><code>sigcatch</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>60</td><td><code>sigwait</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>61</td><td><code>halt</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>62</td><td><code>hwinfo</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>63</td><td><code>diskinfo</code></td><td>Stable Core ABI</td></tr>
-        <tr><td>64</td><td><code>getcwd</code></td><td>Stable Core ABI</td></tr>
+        <tr><td><code>boot/</code></td><td>BIOS MBR + stage2 and UEFI <code>BOOTX64.EFI</code> loaders</td></tr>
+        <tr><td><code>kern/</code></td><td>Kernel: proc, VM, VFS, FS, drivers, net, ACPI, USB, console</td></tr>
+        <tr><td><code>kern/net/</code></td><td>Interface layer, e1000 / re / virtio-net, lwIP glue</td></tr>
+        <tr><td><code>kern/storage/</code></td><td>AHCI and NVMe</td></tr>
+        <tr><td><code>kern/usb/</code></td><td>xHCI, EHCI, HID, keyboard/mouse, mass storage, audio</td></tr>
+        <tr><td><code>kern/acpi/</code></td><td>ACPI tables, AML, sleep/hibernate, battery, TPM, thermal</td></tr>
+        <tr><td><code>inc/</code></td><td>Public system headers: <code>syscall.h</code>, <code>fnu.h</code>, <code>abi.h</code>, errors</td></tr>
+        <tr><td><code>include/</code></td><td>POSIX-facing userspace headers for <code>libc</code></td></tr>
+        <tr><td><code>lib/</code></td><td><code>libc</code>, <code>libfnu</code>, <code>libm</code>, crypt, util, CRT</td></tr>
+        <tr><td><code>user/</code></td><td>FNU utilities (~127 C programs): sh, ls, vi, ssh, init, doas, ...</td></tr>
+        <tr><td><code>etc/</code></td><td>System config: init, rc.d, accounts, filesystems, sysctl</td></tr>
+        <tr><td><code>tests/</code></td><td>Kernel/userspace tests run by <code>tests/run</code></td></tr>
+        <tr><td><code>tools/</code></td><td><code>mkimg</code>, <code>mkimage.sh</code>, QEMU runners, smoke test</td></tr>
+        <tr><td><code>third_party/</code></td><td>lwIP, e1000 shared code, zlib, LZ4, x86emu - all BSD-compatible</td></tr>
       </tbody>
     </table>
 
-    <h3>ABI data types and structures</h3>
+    <h2 id="build">Build and run</h2>
+    <p>Host requirements:</p>
+    <ul>
+      <li><code>bmake</code> (BSD make)</li>
+      <li><code>clang</code>, <code>lld</code>, LLVM binutils (<code>llvm-ar</code>, <code>llvm-objcopy</code>, ...)</li>
+      <li><code>makefs</code> with FFS/UFS2 support (FreeBSD/NetBSD port; without it the root partition stays empty and a ramdisk is used)</li>
+      <li>QEMU (<code>qemu-system-x86_64</code>) for <code>bmake qemu</code>; OVMF for UEFI</li>
+      <li>Optional: <code>clang-format</code>, <code>lldb</code>/<code>gdb</code>, host <code>yacc</code> for awk</li>
+    </ul>
+    <p>Common targets (from the top-level <code>Makefile</code>):</p>
+    <pre>
+bmake              # default: obj/PRONINX.img + obj/fs.img
+bmake -j$(nproc)   # parallel build
+bmake ci           # build, assert images non-empty, smoke test
+bmake qemu         # BIOS boot, virtio-vga, e1000 user net, serial mon:stdio
+bmake qemu-uefi    # same image under UEFI (OVMF)
+bmake smoke        # tools/smoke-qemu.sh: boot, login, FS torture, shutdown
+bmake qemu-debug   # QEMU paused with GDB stub on tcp::12345
+bmake lldb         # attach lldb to that stub
+bmake font SPLEEN=&lt;dir&gt;   # rebuild kern/font_spleen.c from Spleen BDF
+bmake format       # clang-format on boot/ kern/ inc/ lib/ user/
+bmake clean        # remove obj/, .gdbinit, qemu.log, generated vectors.S
+    </pre>
     <p>
-      The public ABI header uses 64-bit <code>pointer_t</code> and <code>uint64</code>, 32-bit <code>uint32</code>,
-      8-bit <code>uint8</code> and <code>proc_state_t</code>; <code>pid_t</code> is a signed 32-bit type. It publishes
-      <code>struct info</code> for uptime, RAM, and process count; <code>struct procinfo</code> for process snapshots;
-      <code>struct hwinfo</code> for CPU/VRAM/PCI hardware inventory; <code>struct diskinfo</code> for attached block
-      storage info (AHCI SATA / NVMe / RAMDisk); <code>struct fb_modelist</code> for display modes; network structures
-      (<code>struct network_status</code>, <code>struct network_ipv4_config</code>, <code>struct network_ping_request</code>,
-      <code>struct network_endpoint</code>, <code>struct network_dns_request</code>); <code>struct rtctime</code> for RTC
-      wall-clock time; <code>struct df_stat</code> for storage usage; <code>struct linux_dirent64</code> for directory
-      enumeration; and <code>struct termios</code> / <code>struct fb_var_screeninfo</code> for terminal and display control.
+      QEMU knobs: <code>CPUS=2</code> (default SMP), <code>VBE_WIDTH</code> /
+      <code>VBE_HEIGHT</code> to force a framebuffer size,
+      <code>QEMU_EXTRA_OPTS=</code> for extra devices.
     </p>
-
-    <h3>Process observation, signals, and waiting</h3>
-    <p>
-      <code>procinfo(struct procinfo *records, int capacity)</code> returns a bounded process snapshot for tools such as
-      <code>top</code>. <code>waitpid(pid, WNOHANG)</code> supports a bounded non-blocking wait; use <code>-1</code> as
-      the PID to select any direct child. <code>signal(2)</code>, <code>sigcatch(2)</code>, and <code>sigwait(2)</code>
-      implement signal handling and asynchronous event interception. <code>kill(2)</code> enforces permission isolation
-      (only root/wheel may signal foreign processes).
-    </p>
-
     <div class="box">
-      <p><strong>Build note:</strong> Build userspace against the OpenProninx public headers: <code>inc/abi.h</code>, <code>inc/syscall.h</code>, <code>inc/signal.h</code>, and <code>user/user.h</code>.</p>
+      <p>
+        Image write to USB (destructive to the target device):
+        <code>dd if=obj/PRONINX.img of=/dev/sdX bs=4M conv=fsync</code>.
+        The same hybrid GPT image boots from BIOS and from UEFI.
+      </p>
     </div>
 
-    <h2>UFS2 data volume &amp; GPT Storage</h2>
+    <h2 id="accounts">Accounts and first boot</h2>
+    <ul>
+      <li>Shipped accounts in <code>/etc/master.passwd</code>: <code>root</code>, <code>daemon</code>, <code>nobody</code> (bcrypt hashes).</li>
+      <li>README: default <code>root</code> password <code>root</code>.</li>
+      <li>Build embeds <code>/etc/firstboot</code>: once, it runs
+        <code>useradd -m -G wheel ... admin</code> with a baked hash
+        (README: password <code>admin</code>). That account is in
+        <code>wheel</code> so <code>doas</code> works.</li>
+      <li>Account tools: <code>useradd</code> (alias <code>adduser</code>),
+        <code>usermod</code>, <code>userdel</code>, <code>groupadd</code>,
+        <code>chpass</code> (<code>chsh</code>/<code>chfn</code>).
+        Defaults live in <code>/etc/users.conf</code>.</li>
+      <li>Setuid programs: <code>login</code>, <code>passwd</code>, <code>su</code>,
+        <code>doas</code>, <code>ping</code>, <code>chpass</code>.
+        <code>/etc/doas.conf</code> permits group <code>wheel</code>.</li>
+    </ul>
+
+    <h2 id="init">Init, services, shutdown</h2>
     <p>
-      The boot image <code>PRONINX.img</code> is a self-contained hybrid GPT disk containing an ESP partition
-      (with kernel, ramdisk, and UEFI loader), an <code>fnu-boot</code> BIOS stage2 partition, and an
-      <code>fnu-root</code> partition. When a prepared UFS2 FNU Data image is additionally attached,
-      its namespace appears at <code>/data</code>.
+      <code>init</code> (pid 1, <code>user/init.c</code>) is a small BSD-style
+      state machine. It starts the supervisor <code>/usr/bin/fnusvc</code>, which
+      reads one file per service from <code>/etc/rc.d</code>. Ordering ideas come
+      from illumos SMF and FreeBSD <code>rcorder</code>.
     </p>
+    <p>
+      <code>/etc/init.conf</code> keys read by init: <code>start=</code>
+      (<code>single</code> | <code>boot</code> | <code>multi</code>, default multi),
+      <code>console=</code> (<code>insecure</code> asks for the root password in
+      single user), <code>shutdown_timeout=</code> (default 90 seconds),
+      <code>trace=</code>.
+    </p>
+    <p>
+      States include single user, boot shell, multi user, clean shutdown, reboot,
+      halt, poweroff. Boot-stage services (from <code>rc.conf</code> /
+      <code>rc.d</code>): <code>fsck</code>, <code>root</code>,
+      <code>sysctl</code>, <code>hostname</code>, <code>mountall</code>,
+      <code>swap</code>, <code>tmp</code>, <code>var</code>, <code>dmesg</code>,
+      <code>firstboot</code>, then multi-user: <code>syslogd</code>,
+      <code>powerd</code>, <code>fnuplug</code>, <code>sshd</code>,
+      <code>moused</code>, <code>consolemouse</code>, and login on
+      <code>tty1</code>..<code>tty4</code> plus serial
+      <code>loginu0</code>.
+    </p>
+    <p>
+      Service files: one <code>name=value</code> per line
+      (<code>desc=</code>, <code>stage=</code>, <code>run=</code> /
+      <code>step=</code>, <code>stop=</code>, <code>requires=</code> /
+      <code>before=</code> / <code>provides=</code>, <code>restart=</code>,
+      <code>limit=</code>, <code>user=</code>, <code>dir=</code>,
+      <code>env=</code>, <code>log=</code>, <code>timeout=</code>,
+      <code>on=</code>, <code>secure=</code>). Enable with
+      <code>services enable</code> / <code>disable</code>.
+      States: waiting, starting, running, done, failed, maintenance, stopping,
+      stopped, absent, blocked. Shutdown: reverse order, SIGTERM or
+      <code>stop=</code>, then SIGKILL; init gives the supervisor
+      <code>shutdown_timeout</code> seconds.
+    </p>
+
+    <h2 id="abi">System-call ABI</h2>
+    <p>
+      Entry is software interrupt <code>int $0x30</code>
+      (<code>T_SYSCALL</code> in <code>kern/trap.h</code>).
+      Number in <code>%rax</code>; arguments in
+      <code>%rdi %rsi %rdx %rcx %r8 %r9</code>.
+      On success: carry clear, result in <code>%rax</code>.
+      On failure: carry set, <code>%rax</code> is an <code>FNU_ERR_*</code>
+      code (no <code>errno</code> in the kernel ABI).
+      <code>libfnu</code> stubs (<code>lib/libfnu/usys.S</code>) negate the
+      error for the caller.
+      Unknown numbers return <code>FNU_ERR_NOCALL</code>.
+    </p>
+    <p>
+      Numbers: <code>inc/syscall.h</code> (<code>NSYSCALL</code> 128 slots;
+      98 are assigned). Signatures: <code>inc/fnu.h</code>. Structures and
+      constants: <code>inc/abi.h</code>, <code>open.h</code>, <code>stat.h</code>,
+      <code>signal.h</code>, <code>dirent.h</code>, <code>error.h</code>.
+      POSIX sits on top in <code>libc</code>; <code>tests/fnuonly.c</code>
+      links with <code>libfnu</code> alone.
+      Path calls are relative to a dirfd or <code>FNU_FD_CWD</code>;
+      a null path means the fd itself (so <code>fnu_getattr(fd, 0, 0, &amp;st)</code>
+      is fstat). <code>pledge</code> filters by promise bits
+      (<code>kern/pledge.c</code>).
+    </p>
+
+    <h3>Full system-call table</h3>
+    <p>
+      Numbers from <code>inc/syscall.h</code>, signatures from
+      <code>inc/fnu.h</code>. All paths: 98 assigned calls, 128 slots
+      (<code>NSYSCALL</code>); unlisted numbers are unused.
+      Userspace name is <code>fnu_*</code>; libc may wrap these as POSIX.
+    </p>
+
+    <h4>Processes (0-19)</h4>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Name</th><th>Signature</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>0</td><td><code>exit</code></td><td><code>void fnu_exit(int status)</code></td><td>noreturn; low 8 bits reported by wait; ends every thread</td></tr>
+        <tr><td>1</td><td><code>fork</code></td><td><code>int fnu_fork(void)</code></td><td>0 in child; child pid in parent</td></tr>
+        <tr><td>2</td><td><code>exec</code></td><td><code>int fnu_exec(const char *path, char *const argv[], char *const envp[])</code></td><td>static ELF; <code>FNU_FD_CLOSEEXEC</code> fds closed</td></tr>
+        <tr><td>3</td><td><code>wait</code></td><td><code>pid_t fnu_wait(pid_t pid, struct fnu_exitinfo *out, int flags)</code></td><td>-1 any child, 0 group, &lt;-1 that group; <code>FNU_WAIT_NOHANG</code> / <code>_STOPPED</code> / <code>_CONTINUED</code></td></tr>
+        <tr><td>4</td><td><code>signal</code></td><td><code>int fnu_signal(pid_t pid, int sig)</code></td><td>0 caller's group, -1 all signalable, &lt;-1 group; sig 0 = probe only</td></tr>
+        <tr><td>5</td><td><code>procids</code></td><td><code>int fnu_procids(pid_t pid, struct fnu_procids *out)</code></td><td>pid, parent, pgroup, session; pid 0 = self</td></tr>
+        <tr><td>6</td><td><code>session_new</code></td><td><code>pid_t fnu_session_new(void)</code></td><td>new session + group; fails for a group leader</td></tr>
+        <tr><td>7</td><td><code>pgroup_set</code></td><td><code>int fnu_pgroup_set(pid_t pid, pid_t pgid)</code></td><td>same session or new; pid 0 / pgid 0 = self</td></tr>
+        <tr><td>8</td><td><code>ident_get</code></td><td><code>int fnu_ident_get(struct fnu_ident *out)</code></td><td>ruid/euid/suid, rgid/egid/sgid, groups, login name, dumpable-after-exec</td></tr>
+        <tr><td>9</td><td><code>ident_set</code></td><td><code>int fnu_ident_set(const struct fnu_ident *in, int what)</code></td><td><code>FNU_IDENT_UID</code>/<code>_GID</code> like setuid; <code>_GROUPS</code>/<code>_LOGIN</code> root-only; all-or-nothing</td></tr>
+        <tr><td>10</td><td><code>niceness</code></td><td><code>int fnu_niceness(int whom, int id, int how, int *value)</code></td><td><code>FNU_NICE_PROCESS</code>/<code>_GROUP</code>/<code>_USER</code>; GET/SET/ADD; only root lowers</td></tr>
+        <tr><td>11</td><td><code>createmask</code></td><td><code>uint32_t fnu_createmask(uint32_t mask)</code></td><td>umask; returns previous</td></tr>
+        <tr><td>12</td><td><code>limit</code></td><td><code>int fnu_limit(int which, const struct fnu_limit *in, struct fnu_limit *out)</code></td><td><code>FNU_LIMIT_*</code>; in/out may be null</td></tr>
+        <tr><td>13</td><td><code>usage</code></td><td><code>int fnu_usage(int who, struct fnu_usage *out)</code></td><td><code>FNU_USAGE_SELF</code> or <code>FNU_USAGE_CHILDREN</code></td></tr>
+        <tr><td>14</td><td><code>timer</code></td><td><code>int fnu_timer(int which, const struct fnu_timer *in, struct fnu_timer *out)</code></td><td><code>FNU_TIMER_REAL</code>/<code>_VIRTUAL</code>/<code>_PROFILE</code></td></tr>
+        <tr><td>15</td><td><code>sleep</code></td><td><code>int fnu_sleep(const struct fnu_timespec *want, struct fnu_timespec *left)</code></td><td>signal may interrupt; left = remaining</td></tr>
+        <tr><td>16</td><td><code>halt</code></td><td><code>int fnu_halt(int howto)</code></td><td><code>FNU_HALT_*</code>; init's alone unless <code>_FORCE</code>; root</td></tr>
+        <tr><td>17</td><td><code>reboot</code></td><td><code>int fnu_reboot(void)</code></td><td>asks init; root</td></tr>
+        <tr><td>18</td><td><code>poweroff</code></td><td><code>int fnu_poweroff(void)</code></td><td>asks init; root</td></tr>
+        <tr><td>19</td><td><code>ptrace</code></td><td><code>long fnu_ptrace(int request, pid_t pid, uintptr_t addr, int64_t data)</code></td><td>4.3BSD-style <code>PT_*</code></td></tr>
+      </tbody>
+    </table>
+
+    <h4>Signals (20-26)</h4>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Name</th><th>Signature</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>20</td><td><code>sigact</code></td><td><code>int fnu_sigact(int sig, const struct fnu_sigact *act, struct fnu_sigact *old)</code></td><td>handler DEFAULT / IGNORE / address; 64-bit mask; ONCE, REENTER, RESTART, ALTSTACK</td></tr>
+        <tr><td>21</td><td><code>sigmask</code></td><td><code>uint64_t fnu_sigmask(uint64_t block, uint64_t unblock)</code></td><td>block then unblock; returns prior mask; KILL/STOP never blocked</td></tr>
+        <tr><td>22</td><td><code>sigraised</code></td><td><code>uint64_t fnu_sigraised(void)</code></td><td>raised and not yet acted on</td></tr>
+        <tr><td>23</td><td><code>sigtake</code></td><td><code>int fnu_sigtake(uint64_t set, struct fnu_siginfo *out, int block)</code></td><td>take one from set; block to wait</td></tr>
+        <tr><td>24</td><td><code>sigpause</code></td><td><code>int fnu_sigpause(uint64_t mask)</code></td><td>wait with mask until handler; may return <code>FNU_ERR_INTERRUPTED</code></td></tr>
+        <tr><td>25</td><td><code>sigreturn</code></td><td>(trampoline only)</td><td>signal trampoline return path</td></tr>
+        <tr><td>26</td><td><code>altstack</code></td><td><code>int fnu_altstack(const struct fnu_altstack *in, struct fnu_altstack *out)</code></td><td><code>FNU_SIGSTACK_*</code></td></tr>
+      </tbody>
+    </table>
+
+    <h4>Threads (30-35)</h4>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Name</th><th>Signature</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>30</td><td><code>thread_start</code></td><td><code>long fnu_thread_start(const struct fnu_thread_start *start)</code></td><td>entry(arg) on stack, tcb as thread pointer; returns id</td></tr>
+        <tr><td>31</td><td><code>thread_exit</code></td><td><code>void fnu_thread_exit(uint32_t *cleared)</code></td><td>noreturn; *cleared = 0, wakes futex waiters; last thread ends process</td></tr>
+        <tr><td>32</td><td><code>thread_tcb</code></td><td><code>long fnu_thread_tcb(uint64_t tcb)</code></td><td>sets %fs; non-canonical → <code>FNU_ERR_INVALID</code></td></tr>
+        <tr><td>33</td><td><code>thread_id</code></td><td><code>long fnu_thread_id(void)</code></td><td>never a pid</td></tr>
+        <tr><td>34</td><td><code>thread_yield</code></td><td><code>void fnu_thread_yield(void)</code></td><td>yield CPU</td></tr>
+        <tr><td>35</td><td><code>futex</code></td><td><code>long fnu_futex(uint32_t *word, int op, uint32_t val, uint64_t nsec, uint32_t *to)</code></td><td>WAIT / WAKE / REQUEUE; <code>FNU_FUTEX_PRIVATE</code> keys by process+address</td></tr>
+      </tbody>
+    </table>
+
+    <h4>Descriptors / I/O (40-53)</h4>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Name</th><th>Signature</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>40</td><td><code>read</code></td><td><code>long fnu_read(int fd, const struct fnu_segment *seg, int nseg, int64_t at)</code></td><td>scatter/gather segments; at / <code>FNU_IO_HERE</code></td></tr>
+        <tr><td>41</td><td><code>write</code></td><td><code>long fnu_write(int fd, const struct fnu_segment *seg, int nseg, int64_t at)</code></td><td>as read</td></tr>
+        <tr><td>42</td><td><code>seek</code></td><td><code>long fnu_seek(int fd, int64_t offset, int whence)</code></td><td>START / HERE / TAIL; dir offset = FS cookie</td></tr>
+        <tr><td>43</td><td><code>close</code></td><td><code>int fnu_close(int fd)</code></td><td>close descriptor</td></tr>
+        <tr><td>44</td><td><code>dup</code></td><td><code>int fnu_dup(int fd, int to, int flags)</code></td><td>lowest free ≥ to; <code>FNU_DUP_EXACT</code>; <code>FNU_FD_CLOSEEXEC</code></td></tr>
+        <tr><td>45</td><td><code>pipe</code></td><td><code>int fnu_pipe(int fds[2], int flags)</code></td><td><code>FNU_FD_CLOSEEXEC</code>, <code>FNU_FD_NOWAIT</code>, <code>FNU_PIPE_ATOMIC</code></td></tr>
+        <tr><td>46</td><td><code>ioctl</code></td><td><code>int fnu_ioctl(int fd, uint64_t request, uint64_t arg)</code></td><td>sys/ioccom.h encoding; TTY / KB / FB / mouse / disk / audio</td></tr>
+        <tr><td>47</td><td><code>fdstate_get</code></td><td><code>int fnu_fdstate_get(int fd, struct fnu_fdstate *out)</code></td><td>fd flags + file flags</td></tr>
+        <tr><td>48</td><td><code>fdstate_set</code></td><td><code>int fnu_fdstate_set(int fd, const struct fnu_fdstate *in)</code></td><td>set fd state</td></tr>
+        <tr><td>49</td><td><code>ready</code></td><td><code>int fnu_ready(struct fnu_ready *list, int n, const struct fnu_timespec *timeout, const uint64_t *mask)</code></td><td>poll-like readiness; optional signal mask</td></tr>
+        <tr><td>50</td><td><code>flush</code></td><td><code>int fnu_flush(int fd)</code></td><td>volume to disk + drive cache; <code>FNU_FLUSH_ALL</code></td></tr>
+        <tr><td>51</td><td><code>readdir</code></td><td><code>long fnu_readdir(int fd, void *buf, int size, int64_t *basep)</code></td><td><code>struct fnu_dirent</code>, 8-byte padded; basep cookie</td></tr>
+        <tr><td>52</td><td><code>eventq</code></td><td><code>int fnu_eventq(int flags)</code></td><td>kqueue-like queue; not inherited by fork</td></tr>
+        <tr><td>53</td><td><code>events</code></td><td><code>int fnu_events(int fd, const struct fnu_event *changes, int nchanges, struct fnu_event *out, int room, const struct fnu_timespec *timeout)</code></td><td>filters READ/WRITE/FILE/PROC/SIGNAL/TIMER; errors as <code>FNU_EV_ERROR</code></td></tr>
+      </tbody>
+    </table>
+
+    <h4>Names / filesystem (60-77)</h4>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Name</th><th>Signature</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>60</td><td><code>open</code></td><td><code>int fnu_open(int dirfd, const char *path, int flags, int mode)</code></td><td><code>FNU_OPEN_*</code>; mode only when creating</td></tr>
+        <tr><td>61</td><td><code>getattr</code></td><td><code>int fnu_getattr(int dirfd, const char *path, int flags, struct fnu_stat *st)</code></td><td>null path = fstat(fd); <code>FNU_PATH_NOFOLLOW</code></td></tr>
+        <tr><td>62</td><td><code>setattr</code></td><td><code>int fnu_setattr(int dirfd, const char *path, int flags, const struct fnu_setattr *attr)</code></td><td>SIZE/MODE/UID/GID/FLAGS/ATIME/MTIME; TIME_NOW / TIME_KEEP</td></tr>
+        <tr><td>63</td><td><code>make</code></td><td><code>int fnu_make(int dirfd, const char *path, int type, int mode, const char *target)</code></td><td>DIR / FIFO / LINK (target)</td></tr>
+        <tr><td>64</td><td><code>remove</code></td><td><code>int fnu_remove(int dirfd, const char *path, int flags)</code></td><td>dir needs <code>FNU_REMOVE_DIR</code> and must be empty</td></tr>
+        <tr><td>65</td><td><code>link</code></td><td><code>int fnu_link(int fromfd, const char *from, int tofd, const char *to, int flags)</code></td><td>hard link; not on FAT; follow only with <code>FNU_PATH_FOLLOW</code></td></tr>
+        <tr><td>66</td><td><code>rename</code></td><td><code>int fnu_rename(int fromfd, const char *from, int tofd, const char *to)</code></td><td>within one volume</td></tr>
+        <tr><td>67</td><td><code>readlink</code></td><td><code>long fnu_readlink(int dirfd, const char *path, char *buf, int size)</code></td><td>returns length; no terminator</td></tr>
+        <tr><td>68</td><td><code>chdir</code></td><td><code>int fnu_chdir(int dirfd, const char *path)</code></td><td>null path = dirfd's directory</td></tr>
+        <tr><td>69</td><td><code>access</code></td><td><code>int fnu_access(int dirfd, const char *path, int how, int flags)</code></td><td>READ/WRITE/EXEC; <code>FNU_ACCESS_REAL</code></td></tr>
+        <tr><td>70</td><td><code>pathconf</code></td><td><code>int64_t fnu_pathconf(int dirfd, const char *path, int flags, int name)</code></td><td><code>FNU_PC_*</code> filesystem capability</td></tr>
+        <tr><td>71</td><td><code>pathof</code></td><td><code>int fnu_pathof(int dirfd, const char *path, char *buf, int size)</code></td><td>absolute path; null path = of dirfd</td></tr>
+        <tr><td>72</td><td><code>mount</code></td><td><code>int fnu_mount(const struct fnu_mount_req *request)</code></td><td>root; type ufs2 / fat32 / auto</td></tr>
+        <tr><td>73</td><td><code>unmount</code></td><td><code>int fnu_unmount(const char *on, unsigned int flags)</code></td><td><code>FNU_MNT_FORCE</code></td></tr>
+        <tr><td>74</td><td><code>fsstat</code></td><td><code>int fnu_fsstat(struct fnu_fsstat *buf, int capacity)</code></td><td>one entry per mount; capacity 0 → count</td></tr>
+        <tr><td>75</td><td><code>swapon</code></td><td><code>int fnu_swapon(const char *device)</code></td><td>block device; root</td></tr>
+        <tr><td>76</td><td><code>swapoff</code></td><td><code>int fnu_swapoff(void)</code></td><td>root</td></tr>
+        <tr><td>77</td><td><code>unveil</code></td><td><code>int fnu_unveil(const char *path, const char *permissions)</code></td><td>r/w/x/c; both null locks</td></tr>
+      </tbody>
+    </table>
+
+    <h4>Memory (80-84)</h4>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Name</th><th>Signature</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>80</td><td><code>map</code></td><td><code>long fnu_map(void *addr, size_t len, int prot, int flags, int fd, int64_t offset)</code></td><td>READ/WRITE/EXEC; SHARED/PRIVATE/ANON/FIXED; returns address</td></tr>
+        <tr><td>81</td><td><code>unmap</code></td><td><code>int fnu_unmap(void *addr, size_t len)</code></td><td>unmap range</td></tr>
+        <tr><td>82</td><td><code>protect</code></td><td><code>int fnu_protect(void *addr, size_t len, int prot)</code></td><td>W^X enforced</td></tr>
+        <tr><td>83</td><td><code>memsync</code></td><td><code>int fnu_memsync(void *addr, size_t len, int flags)</code></td><td>msync; WAIT or START</td></tr>
+        <tr><td>84</td><td><code>memuse</code></td><td><code>int fnu_memuse(void *addr, size_t len, int advice)</code></td><td>madvise-like <code>FNU_MEMUSE_*</code></td></tr>
+      </tbody>
+    </table>
+
+    <h4>Sockets (90-101)</h4>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Name</th><th>Signature</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>90</td><td><code>socket</code></td><td><code>int fnu_socket(int domain, int type, int protocol)</code></td><td><code>FNU_NET_INET</code> / <code>FNU_NET_LOCAL</code></td></tr>
+        <tr><td>91</td><td><code>socketpair</code></td><td><code>int fnu_socketpair(int domain, int type, int protocol, int fds[2])</code></td><td>connected local pair</td></tr>
+        <tr><td>92</td><td><code>bind</code></td><td><code>int fnu_bind(int fd, const void *addr, int len)</code></td><td>port 0 picks one</td></tr>
+        <tr><td>93</td><td><code>listen</code></td><td><code>int fnu_listen(int fd, int backlog)</code></td><td>listen backlog</td></tr>
+        <tr><td>94</td><td><code>accept</code></td><td><code>int fnu_accept(int fd, void *from, int *len)</code></td><td>from may be null</td></tr>
+        <tr><td>95</td><td><code>connect</code></td><td><code>int fnu_connect(int fd, const void *addr, int len)</code></td><td>datagram: default peer</td></tr>
+        <tr><td>96</td><td><code>send</code></td><td><code>long fnu_send(int fd, const struct fnu_msg *msg, int flags)</code></td><td>sendmsg-like; fds only over local sockets</td></tr>
+        <tr><td>97</td><td><code>recv</code></td><td><code>long fnu_recv(int fd, struct fnu_msg *msg, int flags)</code></td><td>recvmsg-like; 0 = EOF on stream</td></tr>
+        <tr><td>98</td><td><code>shutdown</code></td><td><code>int fnu_shutdown(int fd, int how)</code></td><td>READ / WRITE / BOTH</td></tr>
+        <tr><td>99</td><td><code>sockaddr</code></td><td><code>int fnu_sockaddr(int fd, int which, void *out, int *len)</code></td><td>LOCAL or PEER</td></tr>
+        <tr><td>100</td><td><code>sockopt_set</code></td><td><code>int fnu_sockopt_set(int fd, int opt, const void *val, uint32_t len)</code></td><td><code>FNU_SOCKOPT_*</code></td></tr>
+        <tr><td>101</td><td><code>sockopt_get</code></td><td><code>int fnu_sockopt_get(int fd, int opt, void *val, uint32_t *len)</code></td><td>get socket option</td></tr>
+      </tbody>
+    </table>
+
+    <h4>Machine / control (110-126)</h4>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Name</th><th>Signature</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>110</td><td><code>info</code></td><td><code>int fnu_info(struct fnu_info *inf)</code></td><td>uptime, RAM, swap, process count, load average</td></tr>
+        <tr><td>111</td><td><code>procinfo</code></td><td><code>int fnu_procinfo(struct fnu_procinfo *pi, int capacity)</code></td><td>process snapshot; capacity 0 → count</td></tr>
+        <tr><td>112</td><td><code>hwinfo</code></td><td><code>int fnu_hwinfo(struct fnu_hwinfo *hw)</code></td><td>CPU / VRAM / PCI inventory</td></tr>
+        <tr><td>113</td><td><code>diskinfo</code></td><td><code>int fnu_diskinfo(struct fnu_diskinfo *buf, int capacity)</code></td><td>disks; capacity 0 → count</td></tr>
+        <tr><td>114</td><td><code>netinfo</code></td><td><code>int fnu_netinfo(struct fnu_ifinfo *buf, int capacity)</code></td><td>interfaces; capacity 0 → count</td></tr>
+        <tr><td>115</td><td><code>netconfig</code></td><td><code>int fnu_netconfig(struct fnu_ifconfig *config)</code></td><td>static address or DHCP lease; root</td></tr>
+        <tr><td>116</td><td><code>flock</code></td><td><code>int fnu_flock(int fd, int op)</code></td><td>file lock</td></tr>
+        <tr><td>118</td><td><code>rtctime</code></td><td><code>int fnu_rtctime(struct fnu_rtctime *t)</code></td><td>broken-down RTC wall clock</td></tr>
+        <tr><td>119</td><td><code>gettime</code></td><td><code>int fnu_gettime(struct fnu_timespec *t, int which)</code></td><td>WALL or UPTIME; optional GRAIN step</td></tr>
+        <tr><td>120</td><td><code>random</code></td><td><code>int fnu_random(void *buf, size_t len)</code></td><td>at most 256 bytes per call</td></tr>
+        <tr><td>121</td><td><code>sysctl</code></td><td><code>int fnu_sysctl(const char *name, void *old, uint64_t *oldlen, const void *new, uint64_t newlen)</code></td><td>dotted name; write = root, no pledge</td></tr>
+        <tr><td>122</td><td><code>sysctlnode</code></td><td><code>int fnu_sysctlnode(int index, struct fnu_sysctl_info *info)</code></td><td>walk nodes by index</td></tr>
+        <tr><td>123</td><td><code>pledge</code></td><td><code>int fnu_pledge(const char *promises, const char *execpromises)</code></td><td>OpenBSD-style pledge; enforced in <code>kern/pledge.c</code></td></tr>
+        <tr><td>124</td><td><code>sendsyslog</code></td><td><code>int fnu_sendsyslog(const char *buf, size_t len, int flags)</code></td><td>to syslogd; <code>FNU_LOG_CONSOLE</code></td></tr>
+        <tr><td>125</td><td><code>settime</code></td><td><code>int fnu_settime(const struct fnu_timespec *now)</code></td><td>clock + RTC; root</td></tr>
+        <tr><td>126</td><td><code>slewtime</code></td><td><code>int fnu_slewtime(const struct fnu_timespec *delta, struct fnu_timespec *left)</code></td><td>adjtime-style slew, ±5000 ppm</td></tr>
+      </tbody>
+    </table>
+
+    <div class="box">
+      <p>
+        <strong>Note:</strong> older site text listed a compact 0-64 table
+        (open/read/tcp_*). That layout is gone. Use
+        <code>inc/syscall.h</code> + <code>inc/fnu.h</code> as the source of truth;
+        sockets are FD-based (90-101), not a separate TCP/UDP syscall family.
+        <code>doc/</code> may lag - trust the headers.
+      </p>
+    </div>
+
+    <h3>Error codes (<code>inc/error.h</code>)</h3>
+    <table>
+      <thead>
+        <tr><th>Range</th><th>Group</th><th>Codes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1-14</td><td>The call</td><td><code>INVALID</code> <code>FAULT</code> <code>NOCALL</code> <code>UNSUPPORTED</code> <code>BADREQUEST</code> <code>INTERRUPTED</code> <code>WOULDBLOCK</code> <code>RANGE</code> <code>ARGSTOOLONG</code> <code>NAMETOOLONG</code> <code>BUSY</code> <code>TIMEDOUT</code> <code>INPROGRESS</code> <code>ALREADY</code></td></tr>
+        <tr><td>20-22</td><td>Rights</td><td><code>NOTPERMITTED</code> <code>DENIED</code> <code>READONLY</code></td></tr>
+        <tr><td>30-36</td><td>Resources</td><td><code>NOMEMORY</code> <code>NOSPACE</code> <code>TOOMANYOPEN</code> <code>SYSTEMFULL</code> <code>NOBUFFERS</code> <code>TOOLARGE</code> <code>TOOMANYLINKS</code></td></tr>
+        <tr><td>40-50</td><td>Names / files</td><td><code>NOTFOUND</code> <code>EXISTS</code> <code>NOTDIR</code> <code>ISDIR</code> <code>NOTEMPTY</code> <code>LOOP</code> <code>CROSSDEVICE</code> <code>TEXTBUSY</code> <code>NOTSEEKABLE</code> <code>BADHANDLE</code> <code>IO</code></td></tr>
+        <tr><td>60-62</td><td>Devices</td><td><code>NODEVICE</code> <code>WRONGDEVICE</code> <code>NOTDISK</code></td></tr>
+        <tr><td>70-72</td><td>Processes</td><td><code>NOPROCESS</code> <code>NOCHILD</code> <code>BADEXEC</code></td></tr>
+        <tr><td>80-95</td><td>Network</td><td><code>NOTSOCKET</code> <code>WRONGTYPE</code> <code>BADOPTION</code> <code>NOPROTOCOL</code> <code>NOFAMILY</code> <code>ADDRINUSE</code> <code>NEEDADDRESS</code> <code>MSGTOOBIG</code> <code>NOTCONNECTED</code> <code>CONNECTED</code> <code>REFUSED</code> <code>RESET</code> <code>ABORTED</code> <code>BROKENPIPE</code> <code>NETDOWN</code> <code>HOSTUNREACH</code></td></tr>
+      </tbody>
+    </table>
+    <p>Helper: <code>fnu_errstr(int err)</code> in libfnu. Last code: <code>FNU_ERR_LAST</code> = 95.</p>
+
+    <h2 id="kernel">Kernel overview</h2>
+    <p>Boot order in <code>kern/main.c</code> (<code>kmain</code>):</p>
+    <ol>
+      <li>Serial, IRQ PIC, bootinfo, page tables, NX, low memory, message buffer</li>
+      <li>VFS/devfs, real-mode helpers, framebuffer, console, delay/uptime, EFI RT</li>
+      <li>ACPI init, clocks, SMP (<code>mpinit</code>), LAPIC, GDT/IDT</li>
+      <li>Heap, sysctl, scheduler, sockets, SMBIOS, I/O APIC</li>
+      <li>Random, UVM, futex, hotplug, partitions, net init</li>
+      <li>Processes, files, pipes, events, UFS2, ramdisk, start APs</li>
+      <li>Buffer cache, ACPI start, mouse, <strong>driver framework</strong> + all drivers + PCI scan</li>
+      <li><code>create_init</code>, softclock, taskq, netisr, ACPI thread,
+        console refresh, USB explore, bio syncer, UFS2 logger, pagedaemon</li>
+    </ol>
+
+    <h3>SMP and scheduler</h3>
+    <ul>
+      <li>APs from MADT (or MP table): trampoline below 1 MB, INIT/SIPI, long mode, <code>mp_startup()</code>.</li>
+      <li>Failed AP after 5 s is skipped with a diagnostic; S3 wake restarts APs.</li>
+      <li>Scheduler follows DragonFly <code>usched_dfly</code>: per-CPU run queues,
+        nice + estcpu priorities, load-based wakeup, 100 ms RR interval tunable
+        <code>kern.sched.rrinterval</code>.</li>
+      <li>Per-CPU <code>cpu_info</code> at <code>%gs:0</code>; idle via MWAIT/hlt;
+        TLB shootdown IPI; panic stops other CPUs and reboots after
+        <code>kern.panic_reboot_wait_time</code> (default 15 s).</li>
+    </ul>
+
+    <h3>Memory</h3>
+    <ul>
+      <li>Higher-half kernel; direct map, I/O map for MMIO (<code>ioremap</code> / <code>ioremap_wc</code>).</li>
+      <li>User <code>map</code>/<code>unmap</code>/<code>protect</code> (W^X),
+        <code>memsync</code>, <code>memuse</code>.</li>
+      <li>Kernel: page allocator, kheap with reclaimer thread, contig pools.</li>
+    </ul>
+
+    <h3>Processes, signals, security knobs</h3>
+    <ul>
+      <li><code>fork</code>/<code>exec</code> (static ELF), wait with exit info, sessions/process groups, ident (ruid/euid/...), nice, rlimits, timers, ptrace (BSD-style).</li>
+      <li>64-bit signal masks, altstack, trampoline <code>sigreturn</code>.</li>
+      <li>Threads + futex; <code>ready</code>/events (kqueue-like filters).</li>
+      <li><code>pledge</code> and <code>unveil</code> (OpenBSD-style) enforced in
+        <code>kern/pledge.c</code> / <code>kern/unveil.c</code>.</li>
+      <li><code>sysctl</code> tree for tunables; <code>sendsyslog</code> to syslogd.</li>
+    </ul>
+
+    <h2 id="drivers">Driver framework</h2>
+    <p>
+      Defined in <code>kern/driver.h</code> / <code>driver.c</code>:
+      drivers register with <code>probe</code>/<code>attach</code>/<code>detach</code>/<code>intr</code>/<code>poll</code>.
+      PCI scan 0-255 buses; 64-bit BAR decode; MMIO via <code>ioremap</code>;
+      IRQs through IOAPIC; <code>driver_shutdown_all()</code> before poweroff.
+    </p>
+    <p>Registered at boot (<code>kern/main.c</code>):</p>
+    <ul>
+      <li><strong>Net:</strong> Intel E1000 (<code>em0</code>), Realtek (<code>re0</code>), VirtIO-Net (<code>vtnet0</code>)</li>
+      <li><strong>Storage:</strong> PCI IDE, AHCI, NVMe</li>
+      <li><strong>Display:</strong> virtio-gpu (+ VBE/framebuffer console)</li>
+      <li><strong>USB:</strong> xHCI, EHCI; hub, HID, UKBD, UMS, mass storage, audio;
+        firmware takeover before attach</li>
+      <li><strong>Input:</strong> PS/2 kbd/mouse (<code>atkbd</code>, <code>psm</code>), sysmouse</li>
+    </ul>
+
+    <h2 id="storage">Storage and filesystems</h2>
+    <p>Hybrid GPT image from <code>tools/mkimg.c</code> + <code>mkimage.sh</code>:</p>
+    <table>
+      <thead>
+        <tr><th>Partition</th><th>Type / GUID</th><th>Role</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>ESP</td><td>FAT32, label <code>FNUESP</code></td><td>UEFI loader, kernel, ramdisk</td></tr>
+        <tr><td><code>fnu-boot</code></td><td><code>7B589DA3-BDC2-4F6C-8028-FC43D46C5953</code></td><td>BIOS stage2 (legacy boot attr)</td></tr>
+        <tr><td><code>fnu-root</code></td><td>UFS2 Linux filesystem GUID</td><td>Root FS built with <code>makefs</code> when available</td></tr>
+        <tr><td><code>fnu-swap</code></td><td>swap GUID</td><td>Swap / durable dmesg spill (optional size)</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li>Writable FS: <strong>UFS2/FFS</strong> (<code>kern/ufs2.c</code>) with
+        metadata journal <code>/.journal</code> (<code>ufs2log.c</code>,
+        CRC-32C transactions, replay on mount).</li>
+      <li>FAT12/16/32 for ESP and removable media (<code>kern/fat32.c</code>).</li>
+      <li>Root selection: GPT <code>fnu-root</code> via loader reading
+        <code>/etc/filesystems</code>; else ramdisk; else <code>mountroot&gt;</code>.</li>
+      <li>Stable device names: <code>/dev/part-by-uuid/</code>,
+        <code>/dev/fs-by-label/</code>, <code>/dev/serno/...</code>.</li>
+      <li>Buffer cache ~1/16 RAM, 4.4BSD queues, 64 KB MAXPHYS, delayed writes.</li>
+      <li>Tools in userspace: <code>newfs</code>, <code>fsck</code>,
+        <code>fsck_ffs</code>, <code>fsck_msdos</code>, <code>mount</code>,
+        <code>umount</code>, <code>df</code>, <code>swapctl</code>.</li>
+    </ul>
+
+    <h2 id="network">Networking</h2>
+    <ul>
+      <li>Stack: <strong>lwIP 2.2.1</strong> (<code>third_party/lwip</code> +
+        <code>kern/net/lwip/</code>), NO_SYS + <code>netlock</code>,
+        netisr for loopback.</li>
+      <li>DHCP, ARP, IPv4, ICMP, UDP, TCP; DNS and ping helpers in userspace
+        (<code>resolve</code>, <code>ping</code>, <code>fnu_resolve</code>).</li>
+      <li>Drivers: e1000 (FreeBSD-compatible ID set), re (RTL81xx/8168),
+        virtio-net legacy PCI.</li>
+      <li>Sockets are file descriptors: <code>socket</code>…
+        <code>sockopt_get</code>; domains <code>FNU_NET_INET</code> /
+        <code>FNU_NET_LOCAL</code>. Raw ICMP needs root; setuid
+        <code>ping</code> drops privs after open.</li>
+      <li>Userspace: <code>netinfo</code>, <code>netconfig</code>,
+        <code>netecho</code>, <code>ping</code>, <code>resolve</code>,
+        <code>ssh</code>, <code>sshd</code>, <code>ssh-keygen</code>.</li>
+      <li>SSH-2 client/server in <code>user/ssh/</code> (OpenBSD crypto:
+        curve25519, ed25519, chacha20-poly1305); host key on first start;
+        no agent forwarding, no scp yet.</li>
+    </ul>
+
+    <h2 id="video">Console, video, input</h2>
+    <ul>
+      <li>Framebuffer console, four VTs <code>/dev/tty1</code>..<code>tty4</code>,
+        FreeBSD <code>teken</code> (xterm/UTF-8). Serial
+        <code>ttyu0</code>..<code>ttyu3</code>; ptys via <code>/dev/ptm</code>.</li>
+      <li>BIOS VBE + EDID; UEFI GOP; coreboot table; virtio-gpu blits.
+        Fallback VGA text at <code>0xb8000</code>.</li>
+      <li>Fonts: Spleen 2.2.0 (8x16, 12x24, 16x32, 32x64) including Cyrillic;
+        rebuilt with <code>bmake font SPLEEN=...</code>.</li>
+      <li>Keyboard: FreeBSD kbd/atkbd tables, USB HID keyboards, keymaps under
+        <code>/usr/share/vt/keymaps/</code>, <code>kbdcontrol</code>.
+        Alt-F1..F4 switch VTs; Ctrl-Alt-Del to init.</li>
+      <li>Mouse: <code>moused</code> + console pointer; PS/2 and USB;
+        <code>/dev/sysmouse</code>.</li>
+      <li>Video mode switch: <code>vidcontrol</code>; real-mode Video BIOS via
+        x86emu for BIOS/S3 paths.</li>
+    </ul>
+
+    <h2 id="acpi">ACPI, power, TPM</h2>
+    <ul>
+      <li><code>kern/acpi/</code>: RSDP/FADT/MADT/DSDT, AML interpreter,
+        GPE/SCI thread, device match by HID/CID.</li>
+      <li>Drivers: EC, buttons/lid, AC, battery, thermal, PCI routing, CPU P-states,
+        backlight, TPM.</li>
+      <li>Sleep S3 / hibernate S4 with LZ4 image; wake trampoline; optional idle sleep.</li>
+      <li>TPM 1.2/2.0 (CRB/TIS), entropy harvest, <code>/dev/tpm0</code> root-only.</li>
+      <li><code>powerd</code> picks CPU frequency; sysctls
+        <code>hw.cpu.*</code>, <code>hw.acpi.*</code>, <code>hw.sensors.*</code>.</li>
+    </ul>
+
+    <h2 id="userspace">FNU userspace</h2>
+    <ul>
+      <li><strong>PRONINX Shell:</strong> the system shell is called
+        <strong>PRONINX Shell</strong>. On disk and in the tree it is simply
+        <code>sh</code> (<code>user/sh</code>, FreeBSD Almquist / ash lineage)
+        with job control and builtins - but the product name is
+        <strong>PRONINX Shell</strong>.</li>
+      <li><strong>Editors:</strong> <code>vi</code> (neatvi lineage),
+        <code>ed</code>, <code>patch</code>.</li>
+      <li><strong>Text:</strong> <code>grep</code>, <code>sed</code>,
+        <code>awk</code>, <code>diff</code>, <code>sort</code>, <code>tr</code>,
+        <code>cut</code>, <code>head</code>/<code>tail</code>, ...</li>
+      <li><strong>File:</strong> <code>ls</code>, <code>cp</code>/<code>mv</code>/<code>rm</code>,
+        <code>find</code>, <code>mount</code>, <code>pax</code> (tar/cpio), ...</li>
+      <li><strong>System:</strong> <code>ps</code>, <code>top</code>,
+        <code>sysctl</code>, <code>dmesg</code>, <code>init</code>,
+        <code>fnusvc</code>, <code>services</code>, <code>doas</code>,
+        <code>login</code>, <code>sshd</code>, <code>fnufetch</code>,
+        <code>fnudate</code>, <code>fnuman</code> (man), ...</li>
+      <li><strong>Libraries:</strong> libc (POSIX + more), libfnu (raw ABI +
+        tables/resolve), libm, libcrypt, libutil, libssh crypto.</li>
+    </ul>
+
+    <h2 id="tests">Tests and CI</h2>
+    <ul>
+      <li><code>tests/</code>: process, VM, FD, pipe, pthread/futex, event,
+        socket, inet, FS torture, hibernate, pledge/unveil, pty, SSH, etc.</li>
+      <li>In-guest: <code>/usr/tests/run</code> (or named tests).</li>
+      <li>Host: <code>bmake smoke</code> / <code>bmake ci</code>.</li>
+      <li>GitHub Actions (<code>.github/workflows/build.yml</code>): install
+        toolchain, build makefs, <code>bmake ci</code>, upload
+        <code>obj/*.img</code> and staged root; separate job builds UFS2 root
+        under FreeBSD and runs <code>fsck_ffs -n</code>.</li>
+    </ul>
+
+    <h2 id="security">Security status</h2>
+    <ul>
+      <li>Baseline <strong>0.1.8-dev is a development image</strong>: no verified
+        boot, no signed updates, no privilege separation in sshd, no encrypted
+        root, no full audit trail.</li>
+      <li>Present building blocks: pledge/unveil, wheel/doas, bcrypt accounts,
+        setuid discipline, raw sockets restricted, fnusvc FIFO root-only,
+        klog restricted to root/wheel.</li>
+      <li>sshd may accept passwords (including root) and has no privsep - stop it
+        on untrusted networks.</li>
+      <li>Report vulnerabilities privately (see SECURITY.md in the source repo),
+        not in public issues, until a dedicated policy is published.</li>
+    </ul>
+
+    <h2 id="quickref">Quick reference</h2>
+    <pre>
+# build &amp; run
+bmake ci
+bmake qemu
+bmake qemu-uefi
+
+# after boot (image defaults; change them)
+#   root / root
+#   first boot creates: admin / admin  (wheel -&gt; doas)
+
+# inside the system
+fnufetch
+services status
+netinfo
+df
+top
+dmesg
+
+# write USB (host, erases target)
+dd if=obj/PRONINX.img of=/dev/sdX bs=4M conv=fsync
+    </pre>
+
+    <div class="box">
+      <p>
+        <strong>Headers for userspace:</strong> build against
+        <code>inc/fnu.h</code>, <code>inc/syscall.h</code>, <code>inc/abi.h</code>,
+        <code>inc/error.h</code> (raw ABI), and the <code>include/</code> tree
+        for POSIX. Public reference in-tree: <code>doc/ABI.md</code> matches
+        current numbers; when in doubt, trust the headers over prose.
+      </p>
+    </div>
   </main>
 
-  <!-- Footer -->
   <footer id="footer">
-	(C) Foundry Technologies Collective
+    (C) Foundry Technologies. - OpenProninx Core 0.1.8-dev handbook
   </footer>
 
 </body>
